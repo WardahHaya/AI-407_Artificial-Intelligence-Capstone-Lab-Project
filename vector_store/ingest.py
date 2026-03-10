@@ -1,8 +1,7 @@
 # vector_store/ingest.py
-# Pulls emails from Gmail and stores them in ChromaDB
-# ChromaDB is a local vector database - it saves to a folder called chroma_db/
-# Each email is embedded (converted to numbers) and stored
-# so we can later search them by meaning
+# Pulls ALL emails from Gmail (inbox + sent) and stores them in ChromaDB
+# Uses pagination to fetch every single email
+# Sent emails are used as style references when drafting new emails
 
 import os
 import pickle
@@ -15,14 +14,10 @@ from vector_store.embeddings import get_embedding_model
 
 load_dotenv()
 
-# Gmail permission scope - we only need to read emails
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-
-# Where ChromaDB saves data on your laptop
 CHROMA_DB_PATH = "chroma_db"
-
-# Name of the collection inside ChromaDB (like a table in a database)
 COLLECTION_NAME = "buraq_emails"
+SENT_COLLECTION_NAME = "buraq_sent_emails"
 
 
 def get_gmail_service():
@@ -35,60 +30,76 @@ def get_gmail_service():
     token_path = "token.pickle"
     creds_path = os.getenv("GOOGLE_CLIENT_SECRET_FILE", "credentials.json")
 
-    # Load saved token if it exists
     if os.path.exists(token_path):
         with open(token_path, "rb") as f:
             creds = pickle.load(f)
 
-    # If no valid credentials, ask user to login
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
             creds = flow.run_local_server(port=0)
-
-        # Save token for next time
         with open(token_path, "wb") as f:
             pickle.dump(creds, f)
 
     return build("gmail", "v1", credentials=creds)
 
 
-def fetch_emails(max_results: int = 50) -> list[dict]:
+def _fetch_messages_by_label(service, label: str, max_results: int = None) -> list[dict]:
     """
-    Fetches recent emails from Gmail inbox.
-    Returns a list of dicts with id, subject, sender, date, snippet.
-    
-    Args:
-        max_results: How many emails to fetch (default 50)
+    Generic paginated fetcher for any Gmail label (INBOX, SENT, etc.)
+    Returns list of raw message dicts with full metadata.
     """
-    print(f"Fetching {max_results} emails from Gmail...")
-    service = get_gmail_service()
+    label_display = label.capitalize()
+    print(f"\nFetching ALL emails from Gmail {label_display}...")
 
-    # Get list of message IDs
-    results = service.users().messages().list(
-        userId="me",
-        labelIds=["INBOX"],
-        maxResults=max_results
-    ).execute()
+    all_messages = []
+    page_token = None
+    page_num = 1
 
-    messages = results.get("messages", [])
+    while True:
+        print(f"  Scanning page {page_num} ({len(all_messages)} found so far)...", end="\r")
 
-    if not messages:
-        print("No emails found.")
+        request_params = {
+            "userId": "me",
+            "labelIds": [label],
+            "maxResults": 500,
+        }
+        if page_token:
+            request_params["pageToken"] = page_token
+
+        results = service.users().messages().list(**request_params).execute()
+        messages = results.get("messages", [])
+        all_messages.extend(messages)
+
+        if max_results and len(all_messages) >= max_results:
+            all_messages = all_messages[:max_results]
+            print(f"\n  Reached limit of {max_results} emails.")
+            break
+
+        page_token = results.get("nextPageToken")
+        if not page_token:
+            print(f"\n  All pages scanned. Total found: {len(all_messages)}")
+            break
+
+        page_num += 1
+
+    if not all_messages:
+        print(f"No emails found in {label_display}.")
         return []
 
+    # Fetch full metadata for each message
+    print(f"\nFetching details for {len(all_messages)} {label_display} emails...")
     emails = []
-    for i, msg in enumerate(messages):
-        print(f"  Fetching email {i+1}/{len(messages)}...", end="\r")
-        
-        # Get full email data
+    for i, msg in enumerate(all_messages):
+        print(f"  Getting email {i+1}/{len(all_messages)}...", end="\r")
+
         data = service.users().messages().get(
             userId="me",
             id=msg["id"],
             format="metadata",
-            metadataHeaders=["Subject", "From", "Date"]
+            metadataHeaders=["Subject", "From", "To", "Date"]
         ).execute()
 
         headers = {h["name"]: h["value"] for h in data["payload"]["headers"]}
@@ -97,63 +108,33 @@ def fetch_emails(max_results: int = 50) -> list[dict]:
             "id": msg["id"],
             "subject": headers.get("Subject", "No Subject"),
             "sender": headers.get("From", "Unknown"),
+            "to": headers.get("To", "Unknown"),
             "date": headers.get("Date", ""),
             "snippet": data.get("snippet", ""),
         })
 
-    print(f"\nFetched {len(emails)} emails successfully.")
+    print(f"\nFetched {len(emails)} {label_display} emails successfully.")
     return emails
 
 
-def ingest_emails_to_chromadb(max_results: int = 50):
+def _embed_and_store(emails: list[dict], collection, label: str = "inbox"):
     """
-    Main ingestion pipeline:
-    1. Fetch emails from Gmail
-    2. Create text representation of each email
-    3. Embed each email using sentence-transformers
-    4. Store in ChromaDB for semantic search
-    
-    Args:
-        max_results: Number of emails to ingest
+    Embeds emails and stores them in the given ChromaDB collection.
+    Skips duplicates automatically.
     """
-    # Step 1: Fetch emails
-    emails = fetch_emails(max_results)
-    if not emails:
-        print("No emails to ingest.")
-        return
+    existing = set(collection.get()["ids"])
+    print(f"\nAlready in database: {len(existing)}")
 
-    # Step 2: Load embedding model
-    model = get_embedding_model()
+    documents, metadatas, ids = [], [], []
 
-    # Step 3: Set up ChromaDB
-    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
-    
-    # Get or create collection
-    # If it already exists we use it, otherwise create fresh
-    collection = client.get_or_create_collection(
-        name=COLLECTION_NAME,
-        metadata={"description": "Buraq email knowledge base"}
-    )
-
-    # Step 4: Prepare data for ChromaDB
-    documents = []   # The text we embed and search
-    metadatas = []   # Extra info stored alongside each document
-    ids = []         # Unique ID for each document
-
-    # Get IDs already in the database to avoid duplicates
-    existing = collection.get()["ids"]
-
-    new_count = 0
     for email in emails:
-        # Skip if already ingested
         if email["id"] in existing:
             continue
 
-        # Create a searchable text representation of the email
-        # This is what gets embedded and searched
         doc_text = (
             f"Subject: {email['subject']}\n"
-            f"From: {email['sender']}\n"
+            f"From: {email.get('sender', '?')}\n"
+            f"To: {email.get('to', '?')}\n"
             f"Date: {email['date']}\n"
             f"Content: {email['snippet']}"
         )
@@ -162,31 +143,95 @@ def ingest_emails_to_chromadb(max_results: int = 50):
         metadatas.append({
             "email_id": email["id"],
             "subject": email["subject"],
-            "sender": email["sender"],
+            "sender": email.get("sender", "?"),
+            "to": email.get("to", "?"),
             "date": email["date"],
         })
         ids.append(email["id"])
-        new_count += 1
 
     if not documents:
         print("All emails already ingested. Database is up to date.")
+        print(f"Total in knowledge base: {collection.count()}")
         return
 
-    # Step 5: Generate embeddings for all documents
-    print(f"Embedding {new_count} new emails...")
-    embeddings = model.encode(documents, show_progress_bar=True).tolist()
+    model = get_embedding_model()
+    batch_size = 100
+    all_embeddings = []
 
-    # Step 6: Add to ChromaDB
-    collection.add(
-        documents=documents,
-        embeddings=embeddings,
-        metadatas=metadatas,
-        ids=ids
+    print(f"\nEmbedding {len(documents)} new emails in batches...")
+    for i in range(0, len(documents), batch_size):
+        batch = documents[i:i+batch_size]
+        print(f"  Embedding batch {i//batch_size + 1}/{(len(documents)-1)//batch_size + 1}...")
+        batch_embeddings = model.encode(batch, show_progress_bar=False).tolist()
+        all_embeddings.extend(batch_embeddings)
+
+    print(f"\nSaving to ChromaDB...")
+    for i in range(0, len(documents), batch_size):
+        collection.add(
+            documents=documents[i:i+batch_size],
+            embeddings=all_embeddings[i:i+batch_size],
+            metadatas=metadatas[i:i+batch_size],
+            ids=ids[i:i+batch_size]
+        )
+        print(f"  Saved batch {i//batch_size + 1}...")
+
+    print(f"\nSuccessfully ingested {len(documents)} new {label} emails.")
+    print(f"Total in knowledge base: {collection.count()}")
+
+
+def fetch_emails(max_results: int = None) -> list[dict]:
+    """Fetches ALL inbox emails using pagination."""
+    service = get_gmail_service()
+    return _fetch_messages_by_label(service, "INBOX", max_results)
+
+
+def ingest_emails_to_chromadb(max_results: int = None):
+    """
+    Ingests ALL inbox emails into ChromaDB.
+    Skips duplicates automatically.
+    """
+    emails = fetch_emails(max_results)
+    if not emails:
+        print("No inbox emails to ingest.")
+        return
+
+    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+    collection = client.get_or_create_collection(
+        name=COLLECTION_NAME,
+        metadata={"description": "Buraq inbox email knowledge base"}
     )
+    _embed_and_store(emails, collection, label="inbox")
 
-    print(f"\nSuccessfully ingested {new_count} emails into ChromaDB.")
-    print(f"Total emails in knowledge base: {collection.count()}")
+
+def ingest_sent_emails(max_results: int = None):
+    """
+    Ingests ALL sent emails into a separate ChromaDB collection.
+    Buraq uses these as style references when drafting new emails —
+    it learns your writing style from emails you've actually sent.
+    """
+    service = get_gmail_service()
+    emails = _fetch_messages_by_label(service, "SENT", max_results)
+    if not emails:
+        print("No sent emails to ingest.")
+        return
+
+    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+    collection = client.get_or_create_collection(
+        name=SENT_COLLECTION_NAME,
+        metadata={"description": "Buraq sent email style reference"}
+    )
+    _embed_and_store(emails, collection, label="sent")
 
 
 if __name__ == "__main__":
-    ingest_emails_to_chromadb(max_results=50)
+    print("=" * 50)
+    print("STEP 1 — Ingesting inbox emails...")
+    print("=" * 50)
+    ingest_emails_to_chromadb(max_results=None)
+
+    print("\n" + "=" * 50)
+    print("STEP 2 — Ingesting sent emails for style learning...")
+    print("=" * 50)
+    ingest_sent_emails(max_results=None)
+
+    print("\n✓ All done! Buraq knowledge base is fully updated.")

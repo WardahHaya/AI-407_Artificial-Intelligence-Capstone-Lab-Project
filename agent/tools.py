@@ -20,26 +20,21 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from groq import Groq
 
-# Import our Lab 2 grounding tool
 from vector_store.search import search_knowledge_base as kb_search
 
 load_dotenv()
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+SENDER_NAME = "Wardah Haya"
 
 
-# ─────────────────────────────────────────
-#  Gmail Auth Helper
-# ─────────────────────────────────────────
 def get_gmail_service():
     creds = None
     token_path = "token.pickle"
     creds_path = os.getenv("GOOGLE_CLIENT_SECRET_FILE", "credentials.json")
-
     if os.path.exists(token_path):
         with open(token_path, "rb") as f:
             creds = pickle.load(f)
-
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -48,7 +43,6 @@ def get_gmail_service():
             creds = flow.run_local_server(port=0)
         with open(token_path, "wb") as f:
             pickle.dump(creds, f)
-
     return build("gmail", "v1", credentials=creds)
 
 
@@ -60,10 +54,8 @@ def get_llm():
 #  TOOL 1 — Read Inbox
 # ══════════════════════════════════════════
 class ReadInboxInput(BaseModel):
-    max_results: int = Field(
-        default=5, ge=1, le=20,
-        description="Number of emails to fetch"
-    )
+    max_results: int = Field(default=5, ge=1, le=20,
+        description="Number of emails to fetch")
 
 @tool(args_schema=ReadInboxInput)
 def read_inbox(max_results: int = 5) -> str:
@@ -77,19 +69,12 @@ def read_inbox(max_results: int = 5) -> str:
         userId="me", labelIds=["INBOX"], maxResults=max_results
     ).execute()
     messages = results.get("messages", [])
-
     if not messages:
         return "Your inbox is empty."
-
     output = []
     for msg in messages:
-        data = service.users().messages().get(
-            userId="me", id=msg["id"]
-        ).execute()
-        headers = {
-            h["name"]: h["value"]
-            for h in data["payload"]["headers"]
-        }
+        data = service.users().messages().get(userId="me", id=msg["id"]).execute()
+        headers = {h["name"]: h["value"] for h in data["payload"]["headers"]}
         output.append(
             f"From: {headers.get('From', 'Unknown')}\n"
             f"Subject: {headers.get('Subject', 'No Subject')}\n"
@@ -103,9 +88,7 @@ def read_inbox(max_results: int = 5) -> str:
 #  TOOL 2 — Search Emails
 # ══════════════════════════════════════════
 class SearchEmailInput(BaseModel):
-    query: str = Field(
-        description="Search query e.g. 'from:ahmed@gmail.com' or 'subject:invoice'"
-    )
+    query: str = Field(description="Search query e.g. 'from:ahmed@gmail.com'")
     max_results: int = Field(default=5, ge=1, le=20)
 
 @tool(args_schema=SearchEmailInput)
@@ -120,19 +103,12 @@ def search_emails(query: str, max_results: int = 5) -> str:
         userId="me", q=query, maxResults=max_results
     ).execute()
     messages = results.get("messages", [])
-
     if not messages:
         return f"No emails found for: '{query}'"
-
     output = []
     for msg in messages:
-        data = service.users().messages().get(
-            userId="me", id=msg["id"]
-        ).execute()
-        headers = {
-            h["name"]: h["value"]
-            for h in data["payload"]["headers"]
-        }
+        data = service.users().messages().get(userId="me", id=msg["id"]).execute()
+        headers = {h["name"]: h["value"] for h in data["payload"]["headers"]}
         output.append(
             f"From: {headers.get('From', 'Unknown')}\n"
             f"Subject: {headers.get('Subject', 'No Subject')}\n"
@@ -145,9 +121,7 @@ def search_emails(query: str, max_results: int = 5) -> str:
 #  TOOL 3 — Fetch Emails by Date
 # ══════════════════════════════════════════
 class FetchByDateInput(BaseModel):
-    date: str = Field(
-        description="Date in YYYY-MM-DD format e.g. '2025-06-01'"
-    )
+    date: str = Field(description="Date in YYYY-MM-DD format e.g. '2025-06-01'")
 
     @field_validator("date")
     @classmethod
@@ -162,33 +136,22 @@ class FetchByDateInput(BaseModel):
 def fetch_emails_by_date(date: str) -> str:
     """
     Fetches all emails received on a specific date.
-    Use this when the user asks for emails from a
-    particular day e.g. 'show emails from June 1st'.
+    Use this when the user asks for emails from a particular day.
     """
     service = get_gmail_service()
     dt = datetime.strptime(date, "%Y-%m-%d")
     after = int(dt.timestamp())
     before = int((dt + timedelta(days=1)).timestamp())
-
     results = service.users().messages().list(
-        userId="me",
-        q=f"after:{after} before:{before}",
-        maxResults=20
+        userId="me", q=f"after:{after} before:{before}", maxResults=20
     ).execute()
     messages = results.get("messages", [])
-
     if not messages:
         return f"No emails found for {date}."
-
     output = [f"Emails received on {date}:\n"]
     for msg in messages:
-        data = service.users().messages().get(
-            userId="me", id=msg["id"]
-        ).execute()
-        headers = {
-            h["name"]: h["value"]
-            for h in data["payload"]["headers"]
-        }
+        data = service.users().messages().get(userId="me", id=msg["id"]).execute()
+        headers = {h["name"]: h["value"] for h in data["payload"]["headers"]}
         output.append(
             f"From: {headers.get('From', 'Unknown')} | "
             f"Subject: {headers.get('Subject', 'No Subject')}"
@@ -198,22 +161,23 @@ def fetch_emails_by_date(date: str) -> str:
 
 # ══════════════════════════════════════════
 #  TOOL 4 — Draft Email
+#  - No email validation (user provides what they want)
+#  - Always signs off as Wardah Haya
+#  - Uses sent email style references from ChromaDB
 # ══════════════════════════════════════════
 class DraftEmailInput(BaseModel):
-    to: str = Field(description="Recipient email address")
+    to: str = Field(
+        description=(
+            "Recipient email address or name. "
+            "Use whatever the user provides — email address or just a name."
+        )
+    )
     subject: str = Field(description="Subject of the email")
     context: str = Field(description="What the email should say")
     tone: str = Field(
         default="professional",
         description="Tone: professional, friendly, formal, casual"
     )
-
-    @field_validator("to")
-    @classmethod
-    def validate_email(cls, v: str) -> str:
-        if "@" not in v:
-            raise ValueError(f"'{v}' is not a valid email address")
-        return v.strip()
 
 @tool(args_schema=DraftEmailInput)
 def draft_email(
@@ -222,9 +186,18 @@ def draft_email(
     """
     Uses AI to draft a complete email based on user instructions.
     Use this when the user asks to write or compose an email.
+    The user may provide an email address or just a name — accept both.
+    Always signs the email as Wardah Haya.
     Always show the draft to the user BEFORE sending.
     Never send without user approval.
     """
+    # Get style reference from past sent emails
+    try:
+        from vector_store.search import get_style_reference
+        style_ref = get_style_reference(f"{subject} {context}")
+    except Exception:
+        style_ref = ""
+
     client = get_llm()
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -232,10 +205,16 @@ def draft_email(
             {
                 "role": "system",
                 "content": (
-                    "You are an expert email writer. "
+                    "You are an expert email writer for Wardah Haya. "
                     "Write a complete, well-structured email. "
                     "Start directly with the greeting. "
-                    "No preamble or explanation."
+                    "ALWAYS end the email with:\n\nBest regards,\nWardah Haya\n\n"
+                    "No preamble or explanation outside the email itself."
+                    + (
+                        f"\n\nHere are examples of past emails written by Wardah Haya "
+                        f"— match her writing style closely:\n\n{style_ref}"
+                        if style_ref else ""
+                    )
                 )
             },
             {
@@ -251,7 +230,10 @@ def draft_email(
     )
     body = response.choices[0].message.content.strip()
 
-    # Save draft for later sending
+    # Ensure signature is present
+    if "Wardah Haya" not in body:
+        body += "\n\nBest regards,\nWardah Haya"
+
     draft = {"to": to, "subject": subject, "body": body}
     with open(".draft_cache.pkl", "wb") as f:
         pickle.dump(draft, f)
@@ -272,87 +254,65 @@ def draft_email(
 # ══════════════════════════════════════════
 class SendReviewedInput(BaseModel):
     confirmed: bool = Field(
-        description="Set True only when user explicitly says send it"
-    )
+        description="Set True only when user explicitly says send it")
 
 @tool(args_schema=SendReviewedInput)
 def send_reviewed_email(confirmed: bool) -> str:
     """
     Sends the previously drafted email after user approval.
     Only call this when the user explicitly says 'send it',
-    'yes send', or 'looks good send it'. Never send without
-    explicit user confirmation.
+    'yes send', or 'looks good send it'.
     """
     if not confirmed:
         return "Email not sent. Please confirm by saying 'send it'."
-
     if not os.path.exists(".draft_cache.pkl"):
         return "No draft found. Please draft an email first."
-
     with open(".draft_cache.pkl", "rb") as f:
         draft = pickle.load(f)
-
     service = get_gmail_service()
     message = MIMEText(draft["body"])
     message["to"] = draft["to"]
     message["subject"] = draft["subject"]
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-    service.users().messages().send(
-        userId="me", body={"raw": raw}
-    ).execute()
+    service.users().messages().send(userId="me", body={"raw": raw}).execute()
     os.remove(".draft_cache.pkl")
-
     return f"Email sent to {draft['to']} | Subject: '{draft['subject']}'"
 
 
 # ══════════════════════════════════════════
 #  TOOL 6 — Daily Email Summary
-#  Handles natural language like "yesterday",
-#  "last 2 days", "today", or YYYY-MM-DD
 # ══════════════════════════════════════════
 class DailySummaryInput(BaseModel):
     date: Optional[str] = Field(
         default=None,
         description=(
-            "Date or time period to summarise. Examples: "
-            "'today', 'yesterday', 'last 2 days', '2026-02-23'. "
-            "Defaults to today if not provided."
+            "Date or time period. Examples: 'today', 'yesterday', "
+            "'last 2 days', '2026-02-23'. Defaults to today."
         )
     )
 
 @tool(args_schema=DailySummaryInput)
 def daily_email_summary(date: Optional[str] = None) -> str:
     """
-    Generates an AI summary of all emails received on a given day
-    or over the last N days. Use this when the user asks for a
-    daily digest, summary of today's emails, yesterday's emails,
-    last 2 days, or what they missed. Accepts natural language like
-    'today', 'yesterday', 'last 2 days', or YYYY-MM-DD format.
+    Generates an AI summary of emails received in a time period.
+    Accepts 'today', 'yesterday', 'last N days', or YYYY-MM-DD.
     """
-    # Handle natural language date inputs
     if date is None or date.lower().strip() in ["today", ""]:
         end_time = datetime.now()
         start_time = end_time - timedelta(days=1)
-
     elif date.lower().strip() == "yesterday":
         end_time = datetime.now() - timedelta(days=1)
         start_time = end_time - timedelta(days=1)
-
     elif any(word in date.lower() for word in ["last", "past", "recent"]):
-        # Extract number from "last 2 days", "past 3 days" etc.
         numbers = re.findall(r'\d+', date)
         days_back = int(numbers[0]) if numbers else 1
         end_time = datetime.now()
         start_time = end_time - timedelta(days=days_back)
-
     else:
-        # Try standard YYYY-MM-DD format
         try:
             start_time = datetime.strptime(date.strip(), "%Y-%m-%d")
             end_time = start_time + timedelta(days=1)
         except ValueError:
-            # Fallback to today if format not recognised
             end_time = datetime.now()
             start_time = end_time - timedelta(days=1)
 
@@ -361,24 +321,16 @@ def daily_email_summary(date: Optional[str] = None) -> str:
 
     service = get_gmail_service()
     results = service.users().messages().list(
-        userId="me",
-        q=f"after:{after_ts} before:{before_ts}",
-        maxResults=30
+        userId="me", q=f"after:{after_ts} before:{before_ts}", maxResults=30
     ).execute()
     messages = results.get("messages", [])
-
     if not messages:
         return "No emails received in the specified time period."
 
     snippets = []
     for msg in messages:
-        data = service.users().messages().get(
-            userId="me", id=msg["id"]
-        ).execute()
-        headers = {
-            h["name"]: h["value"]
-            for h in data["payload"]["headers"]
-        }
+        data = service.users().messages().get(userId="me", id=msg["id"]).execute()
+        headers = {h["name"]: h["value"] for h in data["payload"]["headers"]}
         snippets.append(
             f"From: {headers.get('From','?')} | "
             f"Subject: {headers.get('Subject','?')} | "
@@ -389,21 +341,13 @@ def daily_email_summary(date: Optional[str] = None) -> str:
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are Buraq, an intelligent email assistant. "
-                    "Summarise these emails as a clear daily digest. "
-                    "Use bullet points. Highlight anything urgent."
-                )
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Summarise these {len(snippets)} emails:\n\n"
-                    + "\n".join(snippets)
-                )
-            }
+            {"role": "system", "content": (
+                "You are Buraq. Summarise these emails as a clear daily digest. "
+                "Use bullet points. Highlight anything urgent."
+            )},
+            {"role": "user", "content": (
+                f"Summarise these {len(snippets)} emails:\n\n" + "\n".join(snippets)
+            )}
         ]
     )
     return response.choices[0].message.content.strip()
@@ -417,28 +361,18 @@ class CheckSpamInput(BaseModel):
 
 @tool(args_schema=CheckSpamInput)
 def check_spam(max_results: int = 10) -> str:
-    """
-    Checks the Gmail spam folder and reports suspicious emails.
-    Use this when user asks about spam or junk mail.
-    """
+    """Checks the Gmail spam folder and reports suspicious emails."""
     service = get_gmail_service()
     results = service.users().messages().list(
         userId="me", labelIds=["SPAM"], maxResults=max_results
     ).execute()
     messages = results.get("messages", [])
-
     if not messages:
         return "No spam emails found."
-
     output = [f"{len(messages)} spam email(s) detected:\n"]
     for msg in messages:
-        data = service.users().messages().get(
-            userId="me", id=msg["id"]
-        ).execute()
-        headers = {
-            h["name"]: h["value"]
-            for h in data["payload"]["headers"]
-        }
+        data = service.users().messages().get(userId="me", id=msg["id"]).execute()
+        headers = {h["name"]: h["value"] for h in data["payload"]["headers"]}
         output.append(
             f"From: {headers.get('From','?')} | "
             f"Subject: {headers.get('Subject','?')}"
@@ -450,34 +384,25 @@ def check_spam(max_results: int = 10) -> str:
 #  TOOL 8 — Check Replies
 # ══════════════════════════════════════════
 class CheckRepliesInput(BaseModel):
-    hours_back: int = Field(
-        default=24, ge=1, le=720,
-        description="How many hours back to check for replies (max 720 = 30 days)"
-    )
+    hours_back: int = Field(default=24, ge=1, le=720,
+        description="How many hours back to check (max 720 = 30 days)")
 
 @tool(args_schema=CheckRepliesInput)
 def check_replies(hours_back: int = 24) -> str:
     """
-    Checks if anyone replied to the user's sent emails recently.
-    Use this when user asks if anyone replied or responded to them.
+    Checks if anyone replied to sent emails recently.
     Accepts up to 720 hours (30 days) back.
     """
     service = get_gmail_service()
     since = datetime.now() - timedelta(hours=hours_back)
     after_ts = int(since.timestamp())
-
     results = service.users().messages().list(
-        userId="me",
-        q=f"in:inbox after:{after_ts}",
-        maxResults=20
+        userId="me", q=f"in:inbox after:{after_ts}", maxResults=20
     ).execute()
     messages = results.get("messages", [])
-
     replies = []
     for msg in messages:
-        data = service.users().messages().get(
-            userId="me", id=msg["id"]
-        ).execute()
+        data = service.users().messages().get(userId="me", id=msg["id"]).execute()
         headers_list = data["payload"]["headers"]
         headers = {h["name"]: h["value"] for h in headers_list}
         if any(h["name"] == "In-Reply-To" for h in headers_list):
@@ -485,14 +410,9 @@ def check_replies(hours_back: int = 24) -> str:
                 f"From: {headers.get('From','?')} | "
                 f"Subject: {headers.get('Subject','?')}"
             )
-
     if not replies:
         return f"No replies received in the last {hours_back} hours."
-
-    return (
-        f"{len(replies)} reply/replies in last {hours_back} hours:\n\n"
-        + "\n".join(replies)
-    )
+    return f"{len(replies)} reply/replies in last {hours_back} hours:\n\n" + "\n".join(replies)
 
 
 # ══════════════════════════════════════════
@@ -505,70 +425,49 @@ class ImportantAlertsInput(BaseModel):
 def check_important_alerts(max_results: int = 10) -> str:
     """
     Scans inbox and uses AI to find urgent emails and deadlines.
-    Use this when user asks what needs attention, any deadlines,
-    or anything important in their inbox.
+    Use this when user asks what needs attention or any deadlines.
     """
     service = get_gmail_service()
     results = service.users().messages().list(
         userId="me", labelIds=["INBOX"], maxResults=max_results
     ).execute()
     messages = results.get("messages", [])
-
     if not messages:
         return "No emails to analyse."
-
     snippets = []
     for msg in messages:
-        data = service.users().messages().get(
-            userId="me", id=msg["id"]
-        ).execute()
-        headers = {
-            h["name"]: h["value"]
-            for h in data["payload"]["headers"]
-        }
+        data = service.users().messages().get(userId="me", id=msg["id"]).execute()
+        headers = {h["name"]: h["value"] for h in data["payload"]["headers"]}
         snippets.append(
             f"From: {headers.get('From','?')} | "
             f"Subject: {headers.get('Subject','?')} | "
             f"{data.get('snippet','')[:120]}"
         )
-
     client = get_llm()
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are Buraq. Analyse these emails and extract "
-                    "only urgent ones, deadlines, or action items. "
-                    "If nothing urgent, say so clearly."
-                )
-            },
-            {
-                "role": "user",
-                "content": "\n".join(snippets)
-            }
+            {"role": "system", "content": (
+                "You are Buraq. Extract only urgent emails, deadlines, "
+                "or action items. If nothing urgent, say so clearly."
+            )},
+            {"role": "user", "content": "\n".join(snippets)}
         ]
     )
     return response.choices[0].message.content.strip()
 
 
 # ══════════════════════════════════════════
-#  TOOL 10 — Search Knowledge Base (Lab 2)
+#  TOOL 10 — Search Knowledge Base
 # ══════════════════════════════════════════
 class SearchKBInput(BaseModel):
-    query: str = Field(
-        description="Natural language query to search past emails"
-    )
+    query: str = Field(description="Natural language query to search past emails")
 
 @tool(args_schema=SearchKBInput)
 def search_knowledge_base(query: str) -> str:
     """
-    Searches the ChromaDB vector store for past emails
-    using semantic similarity. Use this when the user wants
-    to find an old email by describing what it was about,
-    even without remembering exact words or sender.
-    This is the grounding tool that searches indexed email history.
+    Searches ChromaDB vector store for past emails using semantic similarity.
+    Use when the user wants to find an old email by describing what it was about.
     """
     return kb_search(query)
 
