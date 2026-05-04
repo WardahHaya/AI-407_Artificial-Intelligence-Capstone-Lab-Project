@@ -26,3 +26,4 @@ entirely through natural language. No need to open Gmail.
 - [x] Lab 5 - Persistence & HITL
 - [x] Lab 6 - Security Guardrails & Jailbreaking
 - [x] Lab 7 - Evaluation & Observability
+- [x] Lab 8 - FastAPI API Layer
