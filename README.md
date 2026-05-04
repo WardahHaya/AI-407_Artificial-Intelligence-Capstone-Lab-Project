@@ -28,3 +28,4 @@ entirely through natural language. No need to open Gmail.
 - [x] Lab 7 - Evaluation & Observability
 - [x] Lab 8 - FastAPI API Layer
 - [x] Lab 9 - Docker Packaging
+- [x] Lab 10 - CI/CD Quality Gate

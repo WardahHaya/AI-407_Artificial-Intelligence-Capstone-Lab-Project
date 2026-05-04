@@ -1,0 +1,22 @@
+Lab 10 Breaking Change Verification
+==================================
+
+Normal quality-gate run:
+- Command: `python run_eval.py`
+- Average faithfulness: 0.952
+- Average relevancy: 0.690
+- Average tool accuracy: 1.000
+- Exit code: 0
+- Result: Passed
+
+Breaking-change simulation:
+- Command: `BREAK_AGENT_FOR_CI=true python run_eval.py`
+- Average faithfulness: 0.429
+- Average relevancy: 0.380
+- Average tool accuracy: 0.700
+- Exit code: 1
+- Result: Failed
+
+Interpretation:
+- The CI-ready evaluation script correctly passes when the agent quality is above threshold.
+- When the simulated breaking change disables reliable grounding behavior, the script exits with code 1 so GitHub Actions would mark the workflow red.

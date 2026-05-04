@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,9 +25,9 @@ from tools import (
 )
 from vector_store.embeddings import get_embedding_model
 
-DATASET_PATH = Path("test_dataset.json")
-RESULTS_PATH = Path("evaluation_results.json")
-REPORT_PATH = Path("evaluation_report.md")
+DATASET_PATH = Path(os.getenv("TEST_DATASET_PATH", "test_dataset.json"))
+RESULTS_PATH = Path(os.getenv("EVAL_RESULTS_PATH", "evaluation_results.json"))
+REPORT_PATH = Path(os.getenv("EVAL_REPORT_PATH", "evaluation_report.md"))
 
 STOPWORDS = {
     "a",
