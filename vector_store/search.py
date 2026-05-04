@@ -5,6 +5,7 @@ import os
 import chromadb
 from groq import Groq
 from dotenv import load_dotenv
+from ingest_data import get_chroma_client
 from vector_store.embeddings import get_embedding_model
 
 load_dotenv()
@@ -19,7 +20,7 @@ def search_knowledge_base(query: str, n_results: int = 3) -> str:
     a natural language AI response based on what was found.
     """
     # Step 1 — Load ChromaDB
-    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+    client = get_chroma_client()
 
     try:
         collection = client.get_collection(name=COLLECTION_NAME)

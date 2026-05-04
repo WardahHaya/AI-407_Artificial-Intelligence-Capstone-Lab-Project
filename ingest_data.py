@@ -6,6 +6,7 @@ import html
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
@@ -24,6 +25,20 @@ class ChunkRecord:
     chunk_id: str
     text: str
     metadata: dict[str, str]
+
+
+def _disable_chroma_telemetry() -> None:
+    """
+    Chroma 1.5.1 can emit false PostHog telemetry errors in some local environments.
+    The retrieval/indexing path still works, so we disable telemetry noise explicitly.
+    """
+    try:
+        import posthog
+
+        posthog.disabled = True
+        posthog.capture = lambda *args, **kwargs: None
+    except Exception:
+        pass
 
 
 def clean_text(text: str) -> str:
@@ -283,8 +298,14 @@ def load_project_chunks(data_dir: Path = DATA_DIR) -> list[ChunkRecord]:
     return all_chunks
 
 
+@lru_cache(maxsize=1)
+def get_chroma_client():
+    _disable_chroma_telemetry()
+    return chromadb.PersistentClient(path=CHROMA_DB_PATH)
+
+
 def get_collection():
-    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+    client = get_chroma_client()
     return client.get_or_create_collection(
         name=COLLECTION_NAME,
         metadata={"description": "Lab 2 grounded source memory for the Buraq Gmail agent"},

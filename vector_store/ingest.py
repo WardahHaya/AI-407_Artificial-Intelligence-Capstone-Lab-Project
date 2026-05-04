@@ -10,6 +10,7 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import chromadb
+from ingest_data import get_chroma_client
 from vector_store.embeddings import get_embedding_model
 
 load_dotenv()
@@ -195,7 +196,7 @@ def ingest_emails_to_chromadb(max_results: int = None):
         print("No inbox emails to ingest.")
         return
 
-    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+    client = get_chroma_client()
     collection = client.get_or_create_collection(
         name=COLLECTION_NAME,
         metadata={"description": "Buraq inbox email knowledge base"}
@@ -215,7 +216,7 @@ def ingest_sent_emails(max_results: int = None):
         print("No sent emails to ingest.")
         return
 
-    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+    client = get_chroma_client()
     collection = client.get_or_create_collection(
         name=SENT_COLLECTION_NAME,
         metadata={"description": "Buraq sent email style reference"}

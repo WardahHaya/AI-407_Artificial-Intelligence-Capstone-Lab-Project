@@ -7,5 +7,4 @@ __pycache__/
 chroma_db/
 .DS_Store
 .draft_cache.pkl
-collaboration_trace.log
 .vscode/
