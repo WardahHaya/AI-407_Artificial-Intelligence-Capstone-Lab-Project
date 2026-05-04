@@ -21,4 +21,4 @@ entirely through natural language. No need to open Gmail.
 ## Lab Progress
 - [x] Lab 1 — Problem Framing & Architecture
 - [x] Lab 2 — Vector Store (ChromaDB)
-- [ ] Lab 3 — LangGraph ReAct Agent
+- [x] Lab 3 — LangGraph ReAct Agent
