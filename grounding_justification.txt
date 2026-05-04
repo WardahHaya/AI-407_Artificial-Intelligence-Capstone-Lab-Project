@@ -1,0 +1,14 @@
+Buraq cannot rely only on a pre-trained LLM because the core work happens on private, fast-changing, user-specific data.
+
+The model does not know:
+- the user's real inbox content and recruiter emails
+- current capstone deadlines and team action items
+- the exact Lab 1 submission checklist being followed in this project
+- the user's preferred writing style taken from sent-email examples
+
+For this project, grounding is necessary because the agent must answer questions like:
+- "Which email asked me to upload my resume?"
+- "What files are missing from my Lab 1 submission?"
+- "What task is due next for the sponsor demo?"
+
+Those answers depend on local project files and simulated inbox records, not on public world knowledge. A base LLM can write fluent text, but without retrieval it would guess, generalize, or hallucinate. The vector store gives Buraq source memory so that its reasoning is anchored to real project artifacts before it drafts, summarizes, or recommends actions.
