@@ -1,0 +1,35 @@
+services:
+  agent-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: buraq-agent-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      CHROMA_SSL: "false"
+    depends_on:
+      - chroma
+    networks:
+      - buraq-net
+
+  chroma:
+    image: chromadb/chroma:0.5.23
+    container_name: buraq-chroma
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    networks:
+      - buraq-net
+
+networks:
+  buraq-net:
+    driver: bridge
+
+volumes:
+  chroma_data:

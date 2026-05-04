@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import html
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -301,6 +302,11 @@ def load_project_chunks(data_dir: Path = DATA_DIR) -> list[ChunkRecord]:
 @lru_cache(maxsize=1)
 def get_chroma_client():
     _disable_chroma_telemetry()
+    chroma_host = os.getenv("CHROMA_HOST")
+    chroma_port = int(os.getenv("CHROMA_PORT", "8000"))
+    chroma_ssl = os.getenv("CHROMA_SSL", "false").lower() == "true"
+    if chroma_host:
+        return chromadb.HttpClient(host=chroma_host, port=chroma_port, ssl=chroma_ssl)
     return chromadb.PersistentClient(path=CHROMA_DB_PATH)
 
 
