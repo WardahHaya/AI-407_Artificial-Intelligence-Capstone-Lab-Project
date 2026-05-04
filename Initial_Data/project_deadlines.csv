@@ -1,0 +1,7 @@
+item_id,source,title,due_date,owner,details,linked_email_id,status
+deadline_001,email,"Select AI407 viva slot","2026-05-07 17:00","Hamza Ali","Choose one available viva slot from the faculty form before auto-assignment happens.","msg_001","open"
+deadline_002,email,"Upload updated resume for internship interview","2026-05-06 23:59","Hamza Ali","Send latest resume and confirm at least two interview windows.","msg_002","open"
+deadline_003,email,"Share architecture slides with team","2026-05-05 22:00","Hamza Ali","Send model architecture slides to Areeba for demo deck merge.","msg_003","in_progress"
+deadline_004,email,"Submit scholarship renewal document","2026-05-09 15:00","Hamza Ali","Upload signed income statement to student affairs portal.","msg_004","open"
+deadline_005,email,"Revise PRD according to evaluation rubric","2026-05-08 20:00","Hamza Ali","Update PRD headings and make sure submission checklist is complete.","msg_006","open"
+deadline_006,meeting,"Simplify sponsor demo storyline","2026-05-06 18:00","Hamza Ali","Reduce jargon in dashboard explanation and emphasize user impact.","msg_007","open"

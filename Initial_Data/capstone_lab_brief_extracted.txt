@@ -1,0 +1,21 @@
+Source: extracted text from course PDF attachment "AI407_Lab1_Brief.pdf"
+
+AI407 Artificial Intelligence Capstone
+Lab 1: Problem Framing and Agentic Architecture
+
+Submission checklist:
+- PRD.md with problem statement, user personas, and measurable success metrics
+- Architecture_Diagram.png showing the end-to-end system design
+- Initial_Data folder with 3 to 5 representative raw files for indexing in Lab 2
+
+Evaluation focus:
+The selected use case must go beyond a single chatbot prompt. Students should show how the agent perceives information from multiple sources, reasons using LangGraph or a similar graph-based workflow, and executes actions through tools or Python functions.
+
+Documentation expectations:
+The PRD should read like a professional product document. It must clearly explain the bottleneck, define the primary user, and justify why an agentic system is necessary. Weak submissions usually list generic AI features without identifying concrete tools, data sources, or decision boundaries.
+
+Architecture expectations:
+The system diagram should include the user entry point, the orchestration layer, the tool layer, and the external systems or knowledge stores. Conditional routing and state updates should be visible if LangGraph is being used.
+
+Viva note:
+During the viva, students may be asked why a regular prompt is insufficient, what data sources the agent needs, and how success would be measured in production.

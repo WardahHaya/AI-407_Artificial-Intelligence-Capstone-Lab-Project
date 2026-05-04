@@ -1,0 +1,23 @@
+Source: meeting notes compiled from project email thread and shared document
+Meeting date: 2026-05-04
+Participants: Hamza Ali, Areeba Khan, Momina Shahid, sponsor representative
+
+Agenda:
+1. Final demo story for the Buraq intelligent Gmail agent
+2. Slide ownership for architecture and business value sections
+3. Risks that may be raised in the viva
+
+Key decisions:
+- Hamza will own the LangGraph architecture explanation and the justification for multi-step tool use.
+- Areeba will combine all slides into one final deck by the morning of 2026-05-06.
+- Momina will replace technical wording on the dashboard slide with user-centric outcomes such as saved time, fewer missed follow-ups, and better prioritization.
+
+Action items:
+- Hamza to send architecture slide draft and agent flow explanation before 10 PM on 2026-05-05.
+- Team to rehearse a two-minute answer for the question: why not just use ChatGPT with one prompt?
+- Sponsor wants at least one realistic business metric on the success slide, preferably response-time reduction or missed-deadline reduction.
+
+Risks discussed:
+- If the submission does not include sample raw files, the Lab 1 package may be considered incomplete.
+- If the agent tools are listed too vaguely, examiners may say the design is still chatbot-like rather than truly agentic.
+- If the diagram shows components but not the routing logic, the LangGraph connection may feel superficial.

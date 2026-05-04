@@ -6,3 +6,6 @@ __pycache__/
 *.pyc
 chroma_db/
 .DS_Store
+.draft_cache.pkl
+collaboration_trace.log
+.vscode/
