@@ -1,0 +1,61 @@
+%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj
+4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Courier >> endobj
+5 0 obj << /Length 1745 >> stream
+BT
+/F1 10 Tf
+40 780 Td
+14 TL
+(Buraq Lab 7 Trace Export) Tj
+T*
+() Tj
+T*
+(Query ID: trace_01) Tj
+T*
+(User Query: Check whether any recruiter asked for my updated resume and draft a professional reply saying I will send it tonight.) Tj
+T*
+() Tj
+T*
+(Node Timeline \(ms\):) Tj
+T*
+(- supervisor: 0.05 ms | ok | Check whether any recruiter asked for my updated resume and draft a professional reply saying I will send it tonight.) Tj
+T*
+(- researcher: 0.10 ms | ok | ) Tj
+T*
+(- researcher_tools: 6866.59 ms | ok | ID: inbox_emails_sample-msg_002 doc_type: incoming_email department: careers priority_level: high source_file: inbox_emails_sample.csv content: Subject: Shortlisted for AI Intern interview From: Talent Team To: hamza@stu) Tj
+T*
+(- researcher: 0.08 ms | ok | [HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: inbox_emails_sample-msg_002 - Draft the final user-facing response or email based on this evidence.) Tj
+T*
+(- analyst: 0.07 ms | ok | ) Tj
+T*
+(- analyst_tools: 18.81 ms | ok | Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are doing well.  Thank them for the update, confirm that I) Tj
+T*
+(- analyst: 0.10 ms | ok | Prepared the final response using grounded evidence.  Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are ) Tj
+T*
+() Tj
+T*
+(Final Answer Preview:) Tj
+T*
+(Prepared the final response using grounded evidence.
+
+Draft Email
+========================================
+To: Talent Team <careers@neuralbridge.ai>
+Subject: Updated resume for int) Tj
+ET
+endstream endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000309 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2106
+%%EOF

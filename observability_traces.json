@@ -1,0 +1,276 @@
+{
+  "traces": [
+    {
+      "query_id": "trace_01",
+      "user_query": "Check whether any recruiter asked for my updated resume and draft a professional reply saying I will send it tonight.",
+      "node_traces": [
+        {
+          "node": "supervisor",
+          "duration_ms": 0.05,
+          "status": "ok",
+          "preview": "Check whether any recruiter asked for my updated resume and draft a professional reply saying I will send it tonight."
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.1,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "researcher_tools",
+          "duration_ms": 6866.59,
+          "status": "ok",
+          "preview": "ID: inbox_emails_sample-msg_002 doc_type: incoming_email department: careers priority_level: high source_file: inbox_emails_sample.csv content: Subject: Shortlisted for AI Intern interview From: Talent Team To: hamza@stu"
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.08,
+          "status": "ok",
+          "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: inbox_emails_sample-msg_002 - Draft the final user-facing response or email based on this evidence."
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.07,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "analyst_tools",
+          "duration_ms": 18.81,
+          "status": "ok",
+          "preview": "Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are doing well.  Thank them for the update, confirm that I"
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.1,
+          "status": "ok",
+          "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are "
+        }
+      ],
+      "final_answer": "Prepared the final response using grounded evidence.\n\nDraft Email\n========================================\nTo: Talent Team <careers@neuralbridge.ai>\nSubject: Updated resume for interview\n\nHi Talent Team,\n\nI hope you are doing well.\n\nThank them for the update, confirm that I will send my updated resume tonight, and mention that I am available for the interview.\n\nBest regards,\nWardah Haya\n\nStyle reference used:\nSubject: Application follow-up\nBody excerpt: Thank you for the update. I am still very interested in the internship opportunity and would be happy to share any additional material if needed.\n========================================\nWait for the user's explicit approval before sending."
+    },
+    {
+      "query_id": "trace_02",
+      "user_query": "Summarize the sponsor feedback from the meeting notes and draft a friendly message to Momina saying I will simplify the dashboard wording.",
+      "node_traces": [
+        {
+          "node": "supervisor",
+          "duration_ms": 0.03,
+          "status": "ok",
+          "preview": "Summarize the sponsor feedback from the meeting notes and draft a friendly message to Momina saying I will simplify the dashboard wording."
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.05,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "researcher_tools",
+          "duration_ms": 16.98,
+          "status": "ok",
+          "preview": "ID: team_meeting_minutes-section-3 doc_type: meeting_notes department: project_team priority_level: medium source_file: team_meeting_minutes.txt content: Document: team meeting minutes Section: key decisions - Hamza will"
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.08,
+          "status": "ok",
+          "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: team_meeting_minutes-section-3 - Draft the final user-facing response or email based on this evidence."
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.1,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "analyst_tools",
+          "duration_ms": 22.05,
+          "status": "ok",
+          "preview": "Draft Email ======================================== To: Momina Shahid <momina.shahid@projectteam.com> Subject: Dashboard wording update  Hi Momina Shahid,  I hope you're doing well.  Let Momina know that I will simplify"
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.08,
+          "status": "ok",
+          "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Momina Shahid <momina.shahid@projectteam.com> Subject: Dashboard wording update  Hi Momina Shahid,  I hope yo"
+        }
+      ],
+      "final_answer": "Prepared the final response using grounded evidence.\n\nDraft Email\n========================================\nTo: Momina Shahid <momina.shahid@projectteam.com>\nSubject: Dashboard wording update\n\nHi Momina Shahid,\n\nI hope you're doing well.\n\nLet Momina know that I will simplify the dashboard wording and highlight saved time, fewer missed follow-ups, and better prioritization.\n\nBest regards,\nWardah Haya\n\nStyle reference used:\nSubject: Re: Sponsor feedback\nBody excerpt: Good point. I will replace the technical wording with a clearer business impact summary and share the revised slide before lunch.\n========================================\nWait for the user's explicit approval before sending."
+    },
+    {
+      "query_id": "trace_03",
+      "user_query": "Look up the evaluation rubric reminder and draft a friendly note to Areeba saying I will update the PRD tonight.",
+      "node_traces": [
+        {
+          "node": "supervisor",
+          "duration_ms": 0.05,
+          "status": "ok",
+          "preview": "Look up the evaluation rubric reminder and draft a friendly note to Areeba saying I will update the PRD tonight."
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.08,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "researcher_tools",
+          "duration_ms": 2.52,
+          "status": "ok",
+          "preview": "From: Dr. Bilal Ahmed <bilal.ahmed@university.edu> Subject: Updated evaluation rubric attached Date: 2026-05-04 13:11 Category: course Priority: medium Action required: yes Preview: Please use the attached rubric when fi"
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.05,
+          "status": "ok",
+          "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: From: Dr. Bilal Ahmed <bilal.ahmed@university.edu> - Draft the final user-facing response or email based on this evidence."
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.09,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "analyst_tools",
+          "duration_ms": 75.54,
+          "status": "ok",
+          "preview": "Draft Email ======================================== To: Areeba Khan <areeba.khan@projectteam.com> Subject: PRD update tonight  Hi Areeba Khan,  I hope you're doing well.  Tell Areeba that I will update the PRD according"
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.09,
+          "status": "ok",
+          "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Areeba Khan <areeba.khan@projectteam.com> Subject: PRD update tonight  Hi Areeba Khan,  I hope you're doing w"
+        }
+      ],
+      "final_answer": "Prepared the final response using grounded evidence.\n\nDraft Email\n========================================\nTo: Areeba Khan <areeba.khan@projectteam.com>\nSubject: PRD update tonight\n\nHi Areeba Khan,\n\nI hope you're doing well.\n\nTell Areeba that I will update the PRD according to the rubric tonight.\n\nBest regards,\nWardah Haya\n\nStyle reference used:\nSubject: Re: Demo flow draft\nBody excerpt: Thanks Areeba. I reviewed the draft and added a simpler explanation for the retrieval step. I can handle the architecture slide and speaker notes tonight so you can merge tomorrow morning.\n========================================\nWait for the user's explicit approval before sending."
+    },
+    {
+      "query_id": "trace_04",
+      "user_query": "Find the viva slot deadline and draft a professional confirmation to Dr. Sana that I will choose a slot before the deadline.",
+      "node_traces": [
+        {
+          "node": "supervisor",
+          "duration_ms": 0.05,
+          "status": "ok",
+          "preview": "Find the viva slot deadline and draft a professional confirmation to Dr. Sana that I will choose a slot before the deadline."
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.09,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "researcher_tools",
+          "duration_ms": 19.64,
+          "status": "ok",
+          "preview": "ID: project_deadlines-deadline_001 doc_type: deadline_record department: task_management priority_level: high source_file: project_deadlines.csv content: Title: Select AI407 viva slot Due date: 2026-05-07 17:00 Owner: Ha"
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.06,
+          "status": "ok",
+          "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: project_deadlines-deadline_001 - Draft the final user-facing response or email based on this evidence."
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.06,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "analyst_tools",
+          "duration_ms": 19.85,
+          "status": "ok",
+          "preview": "Draft Email ======================================== To: Dr. Sana Qureshi <sana.qureshi@university.edu> Subject: AI407 viva slot selection  Hi Dr. Sana Qureshi,  I hope you are doing well.  Confirm that I will choose my "
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.06,
+          "status": "ok",
+          "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Dr. Sana Qureshi <sana.qureshi@university.edu> Subject: AI407 viva slot selection  Hi Dr. Sana Qureshi,  I ho"
+        }
+      ],
+      "final_answer": "Prepared the final response using grounded evidence.\n\nDraft Email\n========================================\nTo: Dr. Sana Qureshi <sana.qureshi@university.edu>\nSubject: AI407 viva slot selection\n\nHi Dr. Sana Qureshi,\n\nI hope you are doing well.\n\nConfirm that I will choose my viva slot before the deadline.\n\nBest regards,\nWardah Haya\n\nStyle reference used:\nSubject: Application follow-up\nBody excerpt: Thank you for the update. I am still very interested in the internship opportunity and would be happy to share any additional material if needed.\n========================================\nWait for the user's explicit approval before sending."
+    },
+    {
+      "query_id": "trace_05",
+      "user_query": "Identify the most urgent open deadline and draft a short update to Areeba about the next action.",
+      "node_traces": [
+        {
+          "node": "supervisor",
+          "duration_ms": 0.03,
+          "status": "ok",
+          "preview": "Identify the most urgent open deadline and draft a short update to Areeba about the next action."
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.05,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "researcher_tools",
+          "duration_ms": 1.93,
+          "status": "ok",
+          "preview": "Important alerts: - Email | Client asked for a simpler dashboard story | from Momina Shahid <momina.shahid@projectteam.com> | priority=medium | action_required=yes - Email | Updated evaluation rubric attached | from Dr. "
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.05,
+          "status": "ok",
+          "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: Important alerts: - Draft the final user-facing response or email based on this evidence."
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.06,
+          "status": "ok",
+          "preview": ""
+        },
+        {
+          "node": "analyst_tools",
+          "duration_ms": 17.59,
+          "status": "ok",
+          "preview": "Draft Email ======================================== To: Areeba Khan <areeba.khan@projectteam.com> Subject: Urgent deadline status update  Hi Areeba Khan,  I hope you're doing well.  Share a short update about the most u"
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.08,
+          "status": "ok",
+          "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Areeba Khan <areeba.khan@projectteam.com> Subject: Urgent deadline status update  Hi Areeba Khan,  I hope you"
+        }
+      ],
+      "final_answer": "Prepared the final response using grounded evidence.\n\nDraft Email\n========================================\nTo: Areeba Khan <areeba.khan@projectteam.com>\nSubject: Urgent deadline status update\n\nHi Areeba Khan,\n\nI hope you're doing well.\n\nShare a short update about the most urgent open deadline and the immediate next action.\n\nBest regards,\nWardah Haya\n\nStyle reference used:\nSubject: Request for capstone extension\nBody excerpt: Assalamualaikum ma'am. I wanted to request a short extension until Friday evening because our evaluation screenshots were delayed by the API outage. I will submit the complete package before 6 PM, InshaAllah.\n========================================\nWait for the user's explicit approval before sending."
+    }
+  ],
+  "summary": {
+    "supervisor": {
+      "average_ms": 0.04,
+      "max_ms": 0.05,
+      "count": 5.0
+    },
+    "researcher": {
+      "average_ms": 0.07,
+      "max_ms": 0.1,
+      "count": 10.0
+    },
+    "researcher_tools": {
+      "average_ms": 1381.53,
+      "max_ms": 6866.59,
+      "count": 5.0
+    },
+    "analyst": {
+      "average_ms": 0.08,
+      "max_ms": 0.1,
+      "count": 10.0
+    },
+    "analyst_tools": {
+      "average_ms": 30.77,
+      "max_ms": 75.54,
+      "count": 5.0
+    }
+  }
+}

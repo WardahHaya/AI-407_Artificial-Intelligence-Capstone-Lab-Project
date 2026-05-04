@@ -336,7 +336,17 @@ def send_reviewed_email(confirmed: bool) -> str:
     message["to"] = draft["to"]
     message["subject"] = draft["subject"]
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-    service.users().messages().send(userId="me", body={"raw": raw}).execute()
+
+    try:
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+    except Exception as exc:
+        return (
+            "Gmail authentication exists, but sending failed. "
+            "If you authenticated with an older read-only token, delete token.pickle and run "
+            "python vector_store\\ingest.py again so Google grants both read and send access.\n"
+            f"Details: {exc}"
+        )
+
     DRAFT_CACHE_PATH.unlink(missing_ok=True)
     return f"Email sent to {draft['to']} with subject '{draft['subject']}'."
 
@@ -496,16 +506,24 @@ def search_knowledge_base(
     Search the grounded Lab 2 vector database.
     Use this when the user asks about old emails, deadlines, meeting notes, or project facts that live in source memory.
     """
-    where: dict[str, str] = {}
+    filters: list[dict[str, str]] = []
     if doc_type:
-        where["doc_type"] = doc_type
+        filters.append({"doc_type": doc_type})
     if department:
-        where["department"] = department
+        filters.append({"department": department})
     if priority_level:
-        where["priority_level"] = priority_level
+        filters.append({"priority_level": priority_level})
+
+    where: dict[str, object] | None
+    if not filters:
+        where = None
+    elif len(filters) == 1:
+        where = filters[0]
+    else:
+        where = {"$and": filters}
 
     try:
-        matches = query_chunks(query=query, top_k=top_k, where=where or None)
+        matches = query_chunks(query=query, top_k=top_k, where=where)
     except Exception as exc:
         return (
             "The grounded knowledge base is not ready yet. "

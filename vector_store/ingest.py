@@ -15,7 +15,10 @@ from vector_store.embeddings import get_embedding_model
 
 load_dotenv()
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+]
 CHROMA_DB_PATH = "chroma_db"
 COLLECTION_NAME = "buraq_emails"
 SENT_COLLECTION_NAME = "buraq_sent_emails"
@@ -26,6 +29,7 @@ def get_gmail_service():
     Authenticates with Gmail API using OAuth2.
     First run: opens browser for Google login.
     After that: uses saved token.pickle automatically.
+    The saved token includes both read access for ingestion and send access for approved drafts.
     """
     creds = None
     token_path = "token.pickle"

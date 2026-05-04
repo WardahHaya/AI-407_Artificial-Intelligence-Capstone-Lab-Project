@@ -1,0 +1,2 @@
+LangSmith public tracing was not available in this local environment because LANGSMITH_API_KEY was not configured.
+Fallback PDF export included: observability_trace_export.pdf
