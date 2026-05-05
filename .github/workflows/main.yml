@@ -21,7 +21,8 @@ jobs:
       LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
       LANGSMITH_TRACING: ${{ secrets.LANGSMITH_API_KEY != '' && 'true' || 'false' }}
       TEST_DATASET_PATH: test_dataset.json
-      EVAL_THRESHOLD_CONFIG_PATH: eval_threshold_config.json
+      EVAL_THRESHOLD_CONFIG_PATH: eval_thresholds.json
+      EVAL_SUMMARY_RESULTS_PATH: ci_eval_results.json
       BREAK_AGENT_FOR_CI: ${{ github.event_name == 'workflow_dispatch' && inputs.simulate_breaking_change && 'true' || 'false' }}
     steps:
       - name: Checkout code
@@ -37,5 +38,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Build Docker image
+        run: docker build -t buraq-agent-ci .
+
       - name: Run evaluation gate
         run: python run_eval.py
+
+      - name: Upload evaluation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-artifacts
+          path: |
+            evaluation_results.json
+            evaluation_report.md
+            ci_eval_results.json

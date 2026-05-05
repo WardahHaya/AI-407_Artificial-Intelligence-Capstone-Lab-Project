@@ -30,8 +30,8 @@ class ChunkRecord:
 
 def _disable_chroma_telemetry() -> None:
     """
-    Chroma 1.5.1 can emit false PostHog telemetry errors in some local environments.
-    The retrieval/indexing path still works, so we disable telemetry noise explicitly.
+    Chroma can emit noisy PostHog telemetry errors in some local environments.
+    Retrieval and indexing still work, so we disable the telemetry noise explicitly.
     """
     try:
         import posthog

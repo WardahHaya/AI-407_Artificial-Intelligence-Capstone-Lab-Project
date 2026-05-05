@@ -1,0 +1,29 @@
+{
+  "dataset": "test_dataset.json",
+  "threshold_config": "eval_thresholds.json",
+  "break_mode": false,
+  "overall_passed": true,
+  "failed_metrics": [],
+  "metrics": [
+    {
+      "metric": "faithfulness",
+      "score": 0.952,
+      "threshold": 0.9,
+      "passed": true
+    },
+    {
+      "metric": "relevancy",
+      "score": 0.69,
+      "threshold": 0.6,
+      "passed": true
+    },
+    {
+      "metric": "tool_call_accuracy",
+      "score": 1.0,
+      "threshold": 0.95,
+      "passed": true
+    }
+  ],
+  "case_results_path": "evaluation_results.json",
+  "report_path": "evaluation_report.md"
+}

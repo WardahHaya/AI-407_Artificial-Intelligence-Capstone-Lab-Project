@@ -8,3 +8,10 @@ chroma_db/
 .DS_Store
 .draft_cache.pkl
 .vscode/
+*.sqlite-shm
+*.sqlite-wal
+uvicorn_stdout.log
+uvicorn_stderr.log
+docker_build_current.log
+docker_script_stdout.log
+docker_script_stderr.log

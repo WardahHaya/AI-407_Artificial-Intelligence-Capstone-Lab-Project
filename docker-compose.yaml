@@ -4,22 +4,26 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: buraq-agent-api
+    restart: unless-stopped
     ports:
       - "8000:8000"
-    env_file:
-      - .env
     environment:
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
       CHROMA_HOST: chroma
       CHROMA_PORT: "8000"
       CHROMA_SSL: "false"
+      CHECKPOINT_DB_PATH: /app/runtime/checkpoint_db.sqlite
     depends_on:
       - chroma
+    volumes:
+      - checkpoint_data:/app/runtime
     networks:
       - buraq-net
 
   chroma:
     image: chromadb/chroma:0.5.23
     container_name: buraq-chroma
+    restart: unless-stopped
     ports:
       - "8001:8000"
     volumes:
@@ -33,3 +37,4 @@ networks:
 
 volumes:
   chroma_data:
+  checkpoint_data:

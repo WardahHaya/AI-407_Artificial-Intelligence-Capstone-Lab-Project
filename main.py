@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
@@ -12,10 +13,11 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
+from ingest_data import get_collection, ingest_chunks, load_project_chunks
 from schema import ChatRequest, ChatResponse
 from secured_graph import build_secured_graph
 
-CHECKPOINT_DB_PATH = Path("checkpoint_db.sqlite")
+CHECKPOINT_DB_PATH = Path(os.getenv("CHECKPOINT_DB_PATH", "checkpoint_db.sqlite"))
 
 
 class ApiDemoModel:
@@ -93,6 +95,29 @@ def _chunk_to_text(chunk: Any) -> str:
     return str(chunk).strip()
 
 
+def _ensure_checkpoint_parent_exists() -> None:
+    CHECKPOINT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _ensure_grounding_ready(max_attempts: int = 10) -> None:
+    last_error: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            collection = get_collection()
+            if collection.count() == 0:
+                ingest_chunks(load_project_chunks())
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt == max_attempts:
+                break
+            import time
+
+            time.sleep(3)
+
+    raise RuntimeError(f"Grounding store startup failed after {max_attempts} attempts: {last_error}")
+
+
 def create_app(model=None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -100,6 +125,8 @@ def create_app(model=None) -> FastAPI:
         if chosen_model is None and not os.getenv("GROQ_API_KEY"):
             chosen_model = ApiDemoModel()
 
+        _ensure_checkpoint_parent_exists()
+        await asyncio.to_thread(_ensure_grounding_ready)
         async with AsyncSqliteSaver.from_conn_string(str(CHECKPOINT_DB_PATH)) as saver:
             if not hasattr(saver.conn, "is_alive"):
                 saver.conn.is_alive = lambda: True
