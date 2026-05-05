@@ -15,7 +15,7 @@ This report covers the industrial packaging and automated quality-gate work for 
   3. Install Python packages.
   4. Copy source code last.
 - Why this ordering matters: Docker can reuse the expensive dependency layer when only application code changes.
-- Multi-stage decision: a single-stage image was kept intentionally because the runtime still needs the compiled Python stack used by Chroma and sentence-transformers. The main optimization came from a lean runtime dependency file rather than a second build stage.
+- Multi-stage decision: a single-stage image was kept intentionally because the runtime still needs the compiled Python stack used by FastAPI, Chroma, and NumPy at execution time. The main optimization came from a lean runtime dependency file and the lightweight container embedding mode rather than a second build stage.
 
 ### Secret-free image
 - No secrets are copied during `docker build`.
