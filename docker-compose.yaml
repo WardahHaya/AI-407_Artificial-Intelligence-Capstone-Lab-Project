@@ -9,6 +9,7 @@ services:
       - "8000:8000"
     environment:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
+      BURAQ_LIGHTWEIGHT_EMBEDDINGS: "true"
       CHROMA_HOST: chroma
       CHROMA_PORT: "8000"
       CHROMA_SSL: "false"

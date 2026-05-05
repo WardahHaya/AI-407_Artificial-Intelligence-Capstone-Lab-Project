@@ -1,13 +1,18 @@
 $ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logPath = Join-Path $repoRoot "docker_build.log"
 
 Set-Location $repoRoot
 
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) {
     throw "Docker CLI was not found. Install Docker Desktop first, then rerun this script."
 }
+
+$dockerCli = (Get-Command docker.exe).Source
 
 $lines = New-Object System.Collections.Generic.List[string]
 $lines.Add("Lab 9 Docker Build Log")
@@ -31,11 +36,33 @@ function Add-CommandOutput {
     $lines.Add("")
     $lines.Add("$Title output:")
 
-    $output = & $Command[0] $Command[1..($Command.Length - 1)] 2>&1
+    $commandLine = ($Command | ForEach-Object {
+        if ($_ -match '\s') {
+            '"' + $_ + '"'
+        } else {
+            $_
+        }
+    }) -join " "
+    $output = & cmd.exe /d /c "$commandLine 2>&1"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command failed with exit code ${LASTEXITCODE}: $($Command -join ' ')"
+    }
     foreach ($line in $output) {
         $lines.Add([string]$line)
     }
     $lines.Add("")
+}
+
+function Invoke-DockerPython {
+    param(
+        [string]$Script
+    )
+
+    $output = $Script | & $dockerCli exec -i buraq-agent-api python -
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker Python command failed with exit code ${LASTEXITCODE}."
+    }
+    return ($output | Out-String).Trim()
 }
 
 function Wait-ForApi {
@@ -56,8 +83,8 @@ function Wait-ForApi {
     throw "API did not become healthy within $TimeoutSeconds seconds."
 }
 
-Add-CommandOutput -Title "docker compose build" -Command @("docker", "compose", "build")
-Add-CommandOutput -Title "docker compose up -d" -Command @("docker", "compose", "up", "-d")
+Add-CommandOutput -Title "docker compose build" -Command @($dockerCli, "compose", "build")
+Add-CommandOutput -Title "docker compose up -d" -Command @($dockerCli, "compose", "up", "-d")
 
 $health = Wait-ForApi -Url "http://127.0.0.1:8000/health"
 $lines.Add("Health check:")
@@ -73,14 +100,26 @@ $lines.Add("First /chat response:")
 $lines.Add(($chat1 | ConvertTo-Json -Compress))
 $lines.Add("")
 
-$checkpointBefore = docker exec buraq-agent-api python -c 'import os, sqlite3; db=os.getenv("CHECKPOINT_DB_PATH","/app/runtime/checkpoint_db.sqlite"); conn=sqlite3.connect(db); print(conn.execute("select count(*) from checkpoints").fetchone()[0]); conn.close()'
-$collectionBefore = docker exec buraq-agent-api python -c 'from ingest_data import get_collection; print(get_collection().count())'
+$checkpointBefore = Invoke-DockerPython @'
+import os
+import sqlite3
+
+db = os.getenv("CHECKPOINT_DB_PATH", "/app/runtime/checkpoint_db.sqlite")
+conn = sqlite3.connect(db)
+print(conn.execute("select count(*) from checkpoints").fetchone()[0])
+conn.close()
+'@
+$collectionBefore = Invoke-DockerPython @'
+from ingest_data import get_collection
+
+print(get_collection().count())
+'@
 $lines.Add("Persistence snapshot before restart:")
 $lines.Add("Checkpoint rows: $checkpointBefore")
 $lines.Add("Chroma collection count: $collectionBefore")
 $lines.Add("")
 
-Add-CommandOutput -Title "docker compose restart" -Command @("docker", "compose", "restart")
+Add-CommandOutput -Title "docker compose restart" -Command @($dockerCli, "compose", "restart")
 
 $healthAfterRestart = Wait-ForApi -Url "http://127.0.0.1:8000/health"
 $lines.Add("Health after restart:")
@@ -96,14 +135,26 @@ $lines.Add("Second /chat response after restart:")
 $lines.Add(($chat2 | ConvertTo-Json -Compress))
 $lines.Add("")
 
-$checkpointAfter = docker exec buraq-agent-api python -c 'import os, sqlite3; db=os.getenv("CHECKPOINT_DB_PATH","/app/runtime/checkpoint_db.sqlite"); conn=sqlite3.connect(db); print(conn.execute("select count(*) from checkpoints").fetchone()[0]); conn.close()'
-$collectionAfter = docker exec buraq-agent-api python -c 'from ingest_data import get_collection; print(get_collection().count())'
+$checkpointAfter = Invoke-DockerPython @'
+import os
+import sqlite3
+
+db = os.getenv("CHECKPOINT_DB_PATH", "/app/runtime/checkpoint_db.sqlite")
+conn = sqlite3.connect(db)
+print(conn.execute("select count(*) from checkpoints").fetchone()[0])
+conn.close()
+'@
+$collectionAfter = Invoke-DockerPython @'
+from ingest_data import get_collection
+
+print(get_collection().count())
+'@
 $lines.Add("Persistence snapshot after restart:")
 $lines.Add("Checkpoint rows: $checkpointAfter")
 $lines.Add("Chroma collection count: $collectionAfter")
 $lines.Add("")
 
-Add-CommandOutput -Title "docker ps" -Command @("docker", "ps")
+Add-CommandOutput -Title "docker ps" -Command @($dockerCli, "ps")
 
 $lines.Add("Notes:")
 $lines.Add("- This log proves reproducible build, multi-service startup, runtime secret injection, and persistence across restart.")

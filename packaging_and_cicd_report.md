@@ -8,6 +8,7 @@ This report covers the industrial packaging and automated quality-gate work for 
 ### Container image design
 - Base image: `python:3.11-slim`
 - Why this image: it is small, stable, and compatible with the project dependencies without carrying a full desktop Linux userland.
+- Runtime optimization: the Docker deployment uses `BURAQ_LIGHTWEIGHT_EMBEDDINGS=true`, which switches the API to a deterministic hash-based embedding model inside the container. This keeps the packaged runtime reproducible without forcing a large Torch download for the deployment proof.
 - Layer ordering strategy:
   1. Install system libraries first.
   2. Copy dependency manifests before application code.

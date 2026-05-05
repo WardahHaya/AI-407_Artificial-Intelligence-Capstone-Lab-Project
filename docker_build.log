@@ -1,34 +1,121 @@
-Lab 9 Docker Build Log
+﻿Lab 9 Docker Build Log
 ======================
 
 Working directory:
 C:\Users\PC\Downloads\Updated capstone lab project\AI-407_Artificial-Intelligence-Capstone-Lab-Project-main
 
-Attempted command:
-docker compose build
+Runtime secret injection example:
+PowerShell: $env:GROQ_API_KEY='your-key'; docker compose up -d
 
-Observed output in this environment:
-docker : The term 'docker' is not recognized as the name of a cmdlet, function, script file, or operable program.
-Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+Command:
+C:\Program Files\Docker\Docker\resources\bin\docker.exe compose build
 
-Attempted command:
-docker compose up -d
+docker compose build output:
+ Image ai-407_artificial-intelligence-capstone-lab-project-main-agent-api Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 787B done
+#1 DONE 0.0s
 
-Observed output in this environment:
-docker : The term 'docker' is not recognized as the name of a cmdlet, function, script file, or operable program.
-Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 520B done
+#2 DONE 0.0s
 
-Attempted command:
-docker ps
+#3 [auth] library/python:pull token for registry-1.docker.io
+#3 DONE 0.0s
 
-Observed output in this environment:
-docker : The term 'docker' is not recognized as the name of a cmdlet, function, script file, or operable program.
-Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+#4 [internal] load metadata for docker.io/library/python:3.11-slim
+#4 DONE 1.4s
+
+#5 [1/6] FROM docker.io/library/python:3.11-slim@sha256:6d85378d88a19cd4d76079817532d62232be95757cb45945a99fec8e8084b9c2
+#5 resolve docker.io/library/python:3.11-slim@sha256:6d85378d88a19cd4d76079817532d62232be95757cb45945a99fec8e8084b9c2 0.1s done
+#5 DONE 0.1s
+
+#6 [2/6] WORKDIR /app
+#6 CACHED
+
+#7 [3/6] RUN apt-get update && apt-get install -y --no-install-recommends     build-essential     curl     libgomp1     && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [internal] load .dockerignore
+#8 transferring context: 279B done
+#8 DONE 0.0s
+
+#9 [internal] load build context
+#9 transferring context: 39.27kB 0.0s done
+#9 DONE 0.0s
+
+#10 [4/6] COPY docker-requirements.txt requirements.txt ./
+#10 CACHED
+
+#11 [5/6] RUN pip install --upgrade pip && pip install -r docker-requirements.txt
+#11 CACHED
+
+#12 [6/6] COPY . .
+#12 DONE 0.1s
+
+#13 exporting to image
+#13 exporting layers
+#13 exporting layers 0.2s done
+#13 exporting manifest sha256:1e0a0eefd4020e15ca07fbb13209f73c03c49f536cf10c6a048b30c8d843bde8 0.0s done
+#13 exporting config sha256:41f205398cb368aac0401bd3269c05e36984a79f9758ab78ef6dcd3b7dd5faa2 0.0s done
+#13 exporting attestation manifest sha256:d5202a1f117441d7818b629f8f19da60561ef757ea624a5b8f64314f39b6e384 0.1s done
+#13 exporting manifest list sha256:f31d7c1b9b280e7d442289b099956d9de0cd4d105b7557be8578a292c2591a08
+#13 exporting manifest list sha256:f31d7c1b9b280e7d442289b099956d9de0cd4d105b7557be8578a292c2591a08 0.0s done
+#13 naming to docker.io/library/ai-407_artificial-intelligence-capstone-lab-project-main-agent-api:latest done
+#13 unpacking to docker.io/library/ai-407_artificial-intelligence-capstone-lab-project-main-agent-api:latest 0.1s done
+#13 DONE 0.5s
+
+#14 resolving provenance for metadata file
+#14 DONE 0.0s
+ Image ai-407_artificial-intelligence-capstone-lab-project-main-agent-api Built 
+
+Command:
+C:\Program Files\Docker\Docker\resources\bin\docker.exe compose up -d
+
+docker compose up -d output:
+ Container buraq-chroma Running 
+ Container buraq-agent-api Recreate 
+ Container buraq-agent-api Recreated 
+ Container buraq-agent-api Starting 
+ Container buraq-agent-api Started 
+
+Health check:
+{"status":"ok","mode":"live"}
+
+First /chat response:
+{"thread_id":"docker-proof-thread","message_id":"9603ef3e-3bee-4714-8bcc-60072b46d605","final_answer":"Yes, a recruiter from the Talent Team asked for your updated resume.","status":"completed"}
+
+Persistence snapshot before restart:
+Checkpoint rows: 28
+Chroma collection count: 30
+
+Command:
+C:\Program Files\Docker\Docker\resources\bin\docker.exe compose restart
+
+docker compose restart output:
+ Container buraq-chroma Restarting 
+ Container buraq-agent-api Restarting 
+ Container buraq-agent-api Started 
+ Container buraq-chroma Started 
+
+Health after restart:
+{"status":"ok","mode":"live"}
+
+Second /chat response after restart:
+{"thread_id":"docker-proof-thread","message_id":"249e13ef-c290-49d8-bcf2-8b4afdf7c39d","final_answer":"Yes, a recruiter from the Talent Team asked for your updated resume.","status":"completed"}
+
+Persistence snapshot after restart:
+Checkpoint rows: 33
+Chroma collection count: 30
+
+Command:
+C:\Program Files\Docker\Docker\resources\bin\docker.exe ps
+
+docker ps output:
+CONTAINER ID   IMAGE                                                                COMMAND                  CREATED          STATUS         PORTS                                         NAMES
+877fe0c76d53   ai-407_artificial-intelligence-capstone-lab-project-main-agent-api   "uvicorn main:app --…"   15 seconds ago   Up 6 seconds   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp   buraq-agent-api
+509025a97731   chromadb/chroma:0.5.23                                               "/docker_entrypoint.…"   5 minutes ago    Up 6 seconds   0.0.0.0:8001->8000/tcp, [::]:8001->8000/tcp   buraq-chroma
 
 Notes:
-- The Dockerfile, .dockerignore, and docker-compose.yaml were created successfully.
-- Python-side verification passed for the Chroma client switch in ingest_data.py.
-- To generate a real build log on a Docker-enabled machine, rerun:
-  1. docker compose build
-  2. docker compose up -d
-  3. docker ps
+- This log proves reproducible build, multi-service startup, runtime secret injection, and persistence across restart.
+- The same thread_id was used before and after restart to demonstrate checkpoint survival.

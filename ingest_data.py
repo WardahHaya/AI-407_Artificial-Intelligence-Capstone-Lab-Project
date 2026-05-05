@@ -323,6 +323,13 @@ def batch_iterable(items: list[ChunkRecord], batch_size: int) -> Iterable[list[C
         yield items[start:start + batch_size]
 
 
+def _encode_texts(model, texts: list[str]) -> list[list[float]]:
+    embeddings = model.encode(texts, show_progress_bar=False)
+    if hasattr(embeddings, "tolist"):
+        return embeddings.tolist()
+    return [list(vector) for vector in embeddings]
+
+
 def ingest_chunks(chunks: list[ChunkRecord]) -> None:
     if not chunks:
         raise ValueError("No chunks were created from Initial_Data.")
@@ -333,7 +340,7 @@ def ingest_chunks(chunks: list[ChunkRecord]) -> None:
     print(f"Preparing to ingest {len(chunks)} semantic chunks into '{COLLECTION_NAME}'...")
     for batch in batch_iterable(chunks, EMBED_BATCH_SIZE):
         texts = [chunk.text for chunk in batch]
-        embeddings = model.encode(texts, show_progress_bar=False).tolist()
+        embeddings = _encode_texts(model, texts)
         collection.upsert(
             ids=[chunk.chunk_id for chunk in batch],
             documents=texts,
@@ -350,7 +357,7 @@ def query_chunks(query: str, top_k: int = 3, where: dict[str, str] | None = None
         raise ValueError("Collection is empty. Run ingest_data.py first.")
 
     model = get_embedding_model()
-    query_embedding = model.encode([clean_text(query)], show_progress_bar=False).tolist()
+    query_embedding = _encode_texts(model, [clean_text(query)])
     results = collection.query(
         query_embeddings=query_embedding,
         n_results=min(top_k, collection.count()),
