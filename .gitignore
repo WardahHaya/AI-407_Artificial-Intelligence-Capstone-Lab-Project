@@ -12,6 +12,8 @@ chroma_db/
 *.sqlite-wal
 uvicorn_stdout.log
 uvicorn_stderr.log
+streamlit*.log
+api_*.log
 docker_build_current.log
 docker_script_stdout.log
 docker_script_stderr.log

@@ -32,7 +32,7 @@ entirely through natural language. No need to open Gmail.
 - [x] Lab 11 - Drift Monitoring & Feedback Loops
 
 ## Quick Runbook
-- Start the API locally: `python -m uvicorn main:app --host 127.0.0.1 --port 8000`
+- Start the API locally when you want a separate backend: `python -m uvicorn main:app --host 127.0.0.1 --port 8000`
 - Start the feedback UI: `streamlit run app.py`
 - Run the evaluation gate locally: `python run_eval.py`
 - Simulate a CI-breaking quality regression: `$env:BREAK_AGENT_FOR_CI='true'; python run_eval.py`
@@ -41,3 +41,15 @@ entirely through natural language. No need to open Gmail.
 - Generate the Lab 9 Docker log after Docker Desktop is installed: `powershell -ExecutionPolicy Bypass -File .\generate_docker_build_log.ps1`
 - Packaging and CI/CD report: `packaging_and_cicd_report.md`
 - Versioned CI thresholds: `eval_thresholds.json`
+
+## Streamlit Deployment
+- Main file path: `app.py`
+- The Streamlit app now supports two deployment modes:
+- Local in-process agent: leave `AGENT_API_BASE_URL` unset and add `GROQ_API_KEY` as a Streamlit secret for live model responses.
+- Remote backend: set `AGENT_API_BASE_URL` to your deployed FastAPI base URL and the UI will call `/chat` on that service.
+- If `GROQ_API_KEY` is not configured, the app falls back to a built-in demo model so the deployment can still load.
+
+## Streamlit Secrets
+- `GROQ_API_KEY`: optional for live local-agent responses on Streamlit Cloud.
+- `AGENT_API_BASE_URL`: optional when pointing the UI at a separately deployed FastAPI backend.
+- `FEEDBACK_DB_PATH`: optional if you want the feedback SQLite file in a custom location.
