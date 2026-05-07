@@ -14,7 +14,7 @@ entirely through natural language. No need to open Gmail.
 - ChromaDB (Vector Store)
 - Groq API / llama3-70b (LLM)
 - Gmail API (Email provider)
-- Firebase (Auth + Database + Storage)
+- SQLite + managed runtime storage (feedback + scheduler + attachments)
 - Streamlit (UI)
 - FastAPI (Backend)
 
@@ -34,6 +34,7 @@ entirely through natural language. No need to open Gmail.
 ## Quick Runbook
 - Start the API locally when you want a separate backend: `python -m uvicorn main:app --host 127.0.0.1 --port 8000`
 - Start the feedback UI: `streamlit run app.py`
+- Complete Gmail OAuth locally before live inbox/send/attachment actions: `python connect_gmail.py`
 - Run the evaluation gate locally: `python run_eval.py`
 - Simulate a CI-breaking quality regression: `$env:BREAK_AGENT_FOR_CI='true'; python run_eval.py`
 - Seed demo feedback rows for the Lab 11 loop: `python seed_feedback_demo.py --reset`
@@ -41,6 +42,17 @@ entirely through natural language. No need to open Gmail.
 - Generate the Lab 9 Docker log after Docker Desktop is installed: `powershell -ExecutionPolicy Bypass -File .\generate_docker_build_log.ps1`
 - Packaging and CI/CD report: `packaging_and_cicd_report.md`
 - Versioned CI thresholds: `eval_thresholds.json`
+
+## Runtime Features
+- Managed file storage references use the format `storage://uploads/<file>` and `storage://downloads/<file>`.
+- The Streamlit sidebar can upload files into managed storage and shows the current scheduled-email queue.
+- The FastAPI backend exposes:
+  - `POST /chat`
+  - `POST /stream`
+  - `POST /upload`
+  - `GET /uploads`
+  - `GET /scheduled`
+- A background scheduler runs in the API and local Streamlit runtime to deliver queued emails when their `send_at` timestamp arrives.
 
 ## Streamlit Deployment
 - Main file path: `app.py`

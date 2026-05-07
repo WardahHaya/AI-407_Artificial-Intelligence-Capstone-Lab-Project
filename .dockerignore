@@ -11,6 +11,7 @@ __pycache__/
 *.sqlite
 *.sqlite3
 chroma_db/
+runtime/
 token.pickle
 credentials.json
 .draft_cache.pkl

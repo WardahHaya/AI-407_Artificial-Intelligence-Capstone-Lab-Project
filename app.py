@@ -10,6 +10,7 @@ import requests
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from runtime_services import ensure_runtime_dirs, init_schedule_db, list_scheduled_emails, list_stored_files, save_uploaded_bytes
 
 load_dotenv()
 
@@ -114,6 +115,8 @@ def _get_local_runtime() -> dict[str, object]:
 
     from ingest_data import get_collection, ingest_chunks, load_project_chunks
     from secured_graph import build_secured_graph
+    from tools import deliver_email_message
+    from runtime_services import start_scheduler_thread
 
     chosen_model = None
     mode = "live"
@@ -121,13 +124,19 @@ def _get_local_runtime() -> dict[str, object]:
         chosen_model = StreamlitDemoModel()
         mode = "demo"
 
+    ensure_runtime_dirs()
+    init_schedule_db()
     collection = get_collection()
     if collection.count() == 0:
         ingest_chunks(load_project_chunks())
 
+    stop_event, thread = start_scheduler_thread(deliver_email_message)
+
     return {
         "graph": build_secured_graph(model=chosen_model),
         "mode": mode,
+        "scheduler_stop_event": stop_event,
+        "scheduler_thread": thread,
     }
 
 
@@ -220,6 +229,57 @@ def send_chat_request(message: str, thread_id: str, chat_history: list[dict[str,
     return _send_local_chat_request(message, thread_id, chat_history)
 
 
+def _upload_remote_file(uploaded_file) -> dict[str, object]:
+    api_base_url = _get_api_base_url()
+    if not api_base_url:
+        raise RuntimeError("AGENT_API_BASE_URL is not configured.")
+
+    response = requests.post(
+        f"{api_base_url}/upload",
+        files={"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type or "application/octet-stream")},
+        timeout=90,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _upload_local_file(uploaded_file) -> dict[str, object]:
+    ensure_runtime_dirs()
+    return save_uploaded_bytes(uploaded_file.name, uploaded_file.getvalue(), area="uploads")
+
+
+def store_uploaded_file(uploaded_file) -> dict[str, object]:
+    if _get_api_base_url():
+        return _upload_remote_file(uploaded_file)
+    return _upload_local_file(uploaded_file)
+
+
+def get_stored_files() -> list[dict[str, object]]:
+    if _get_api_base_url():
+        api_base_url = _get_api_base_url()
+        if not api_base_url:
+            return []
+        response = requests.get(f"{api_base_url}/uploads", timeout=30)
+        response.raise_for_status()
+        return list(response.json().get("files", []))
+
+    ensure_runtime_dirs()
+    return list_stored_files()
+
+
+def get_scheduled_items() -> list[dict[str, object]]:
+    if _get_api_base_url():
+        api_base_url = _get_api_base_url()
+        if not api_base_url:
+            return []
+        response = requests.get(f"{api_base_url}/scheduled", timeout=30)
+        response.raise_for_status()
+        return list(response.json().get("items", []))
+
+    init_schedule_db()
+    return list_scheduled_emails()
+
+
 def _connection_label() -> str:
     api_base_url = _get_api_base_url()
     if api_base_url:
@@ -229,10 +289,21 @@ def _connection_label() -> str:
     return "Local agent (demo mode)"
 
 
+def _gmail_status_label() -> str:
+    creds_path = Path(_get_setting("GOOGLE_CLIENT_SECRET_FILE", "credentials.json") or "credentials.json")
+    token_path = Path("token.pickle")
+    if token_path.exists():
+        return "Gmail auth: connected"
+    if creds_path.exists():
+        return "Gmail auth: credentials found, sign-in not completed yet"
+    return "Gmail auth: credentials.json not found"
+
+
 def init_session_state() -> None:
     st.session_state.setdefault("thread_id", str(uuid4()))
     st.session_state.setdefault("chat_history", [])
     st.session_state.setdefault("saved_feedback_ids", set())
+    st.session_state.setdefault("last_uploaded_ref", "")
 
 
 def render_feedback_controls(turn: dict[str, str]) -> None:
@@ -293,6 +364,46 @@ def render_chat_history() -> None:
             render_feedback_controls(turn)
 
 
+def render_asset_sidebar() -> None:
+    with st.sidebar:
+        st.subheader("Files")
+        uploaded_file = st.file_uploader("Upload attachment", key="sidebar-file-uploader")
+        if uploaded_file is not None and st.button("Store Uploaded File", use_container_width=True):
+            stored = store_uploaded_file(uploaded_file)
+            st.session_state["last_uploaded_ref"] = str(stored["ref"])
+            st.success(f"Stored as {stored['ref']}")
+
+        if st.session_state.get("last_uploaded_ref"):
+            st.caption(f"Latest file reference: {st.session_state['last_uploaded_ref']}")
+            st.caption("Use this in chat, for example: send an email with attachment using that storage reference.")
+
+        try:
+            stored_files = get_stored_files()[:10]
+        except Exception as exc:
+            stored_files = []
+            st.warning(f"Could not load stored files: {exc}")
+
+        if stored_files:
+            for item in stored_files:
+                st.caption(f"{item['ref']} ({item['size_bytes']} bytes)")
+        else:
+            st.caption("No stored files yet.")
+
+        st.divider()
+        st.subheader("Scheduled Email Queue")
+        try:
+            scheduled_items = get_scheduled_items()[:8]
+        except Exception as exc:
+            scheduled_items = []
+            st.warning(f"Could not load scheduled items: {exc}")
+
+        if scheduled_items:
+            for item in scheduled_items:
+                st.caption(f"#{item['id']} | {item['status']} | {item['send_at']} | {item['subject']}")
+        else:
+            st.caption("No scheduled emails yet.")
+
+
 def main() -> None:
     st.set_page_config(page_title="Buraq Feedback Console", page_icon="mailbox", layout="wide")
     init_feedback_db()
@@ -303,11 +414,13 @@ def main() -> None:
         "This Streamlit app can use a deployed FastAPI backend or run the secured LangGraph agent directly."
     )
     st.caption(f"Connection mode: {_connection_label()}")
+    st.caption(_gmail_status_label())
     st.caption(f"Active thread_id: {st.session_state['thread_id']}")
 
     if not _get_api_base_url() and not _get_setting("GROQ_API_KEY"):
         st.info("`GROQ_API_KEY` is not configured, so the app is using the built-in demo model for deployment previews.")
 
+    render_asset_sidebar()
     render_chat_history()
 
     prompt = st.chat_input("Ask Buraq about emails, deadlines, grounded notes, or draft requests.")

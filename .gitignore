@@ -5,6 +5,7 @@ token.pickle
 __pycache__/
 *.pyc
 chroma_db/
+runtime/
 .DS_Store
 .draft_cache.pkl
 .vscode/

@@ -9,7 +9,7 @@ Environment note: no external judge-model or LangSmith API key was configured lo
 | Metric | Average Score |
 | --- | ---: |
 | Average Faithfulness | 0.952 |
-| Average Answer Relevancy | 0.690 |
+| Average Answer Relevancy | 0.678 |
 | Average Tool Call Accuracy | 1.000 |
 
 ## Lowest-Scoring Cases

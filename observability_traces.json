@@ -6,43 +6,43 @@
       "node_traces": [
         {
           "node": "supervisor",
-          "duration_ms": 0.05,
+          "duration_ms": 0.04,
           "status": "ok",
           "preview": "Check whether any recruiter asked for my updated resume and draft a professional reply saying I will send it tonight."
         },
         {
           "node": "researcher",
-          "duration_ms": 0.1,
+          "duration_ms": 0.09,
           "status": "ok",
           "preview": ""
         },
         {
           "node": "researcher_tools",
-          "duration_ms": 6866.59,
+          "duration_ms": 9918.53,
           "status": "ok",
           "preview": "ID: inbox_emails_sample-msg_002 doc_type: incoming_email department: careers priority_level: high source_file: inbox_emails_sample.csv content: Subject: Shortlisted for AI Intern interview From: Talent Team To: hamza@stu"
         },
         {
           "node": "researcher",
-          "duration_ms": 0.08,
+          "duration_ms": 0.06,
           "status": "ok",
           "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: inbox_emails_sample-msg_002 - Draft the final user-facing response or email based on this evidence."
         },
         {
           "node": "analyst",
-          "duration_ms": 0.07,
+          "duration_ms": 0.12,
           "status": "ok",
           "preview": ""
         },
         {
           "node": "analyst_tools",
-          "duration_ms": 18.81,
+          "duration_ms": 22.57,
           "status": "ok",
           "preview": "Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are doing well.  Thank them for the update, confirm that I"
         },
         {
           "node": "analyst",
-          "duration_ms": 0.1,
+          "duration_ms": 0.09,
           "status": "ok",
           "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are "
         }
@@ -55,43 +55,43 @@
       "node_traces": [
         {
           "node": "supervisor",
-          "duration_ms": 0.03,
+          "duration_ms": 0.06,
           "status": "ok",
           "preview": "Summarize the sponsor feedback from the meeting notes and draft a friendly message to Momina saying I will simplify the dashboard wording."
         },
         {
           "node": "researcher",
-          "duration_ms": 0.05,
-          "status": "ok",
-          "preview": ""
-        },
-        {
-          "node": "researcher_tools",
-          "duration_ms": 16.98,
-          "status": "ok",
-          "preview": "ID: team_meeting_minutes-section-3 doc_type: meeting_notes department: project_team priority_level: medium source_file: team_meeting_minutes.txt content: Document: team meeting minutes Section: key decisions - Hamza will"
-        },
-        {
-          "node": "researcher",
-          "duration_ms": 0.08,
-          "status": "ok",
-          "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: team_meeting_minutes-section-3 - Draft the final user-facing response or email based on this evidence."
-        },
-        {
-          "node": "analyst",
           "duration_ms": 0.1,
           "status": "ok",
           "preview": ""
         },
         {
+          "node": "researcher_tools",
+          "duration_ms": 19.2,
+          "status": "ok",
+          "preview": "ID: team_meeting_minutes-section-3 doc_type: meeting_notes department: project_team priority_level: medium source_file: team_meeting_minutes.txt content: Document: team meeting minutes Section: key decisions - Hamza will"
+        },
+        {
+          "node": "researcher",
+          "duration_ms": 0.07,
+          "status": "ok",
+          "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: team_meeting_minutes-section-3 - Draft the final user-facing response or email based on this evidence."
+        },
+        {
+          "node": "analyst",
+          "duration_ms": 0.06,
+          "status": "ok",
+          "preview": ""
+        },
+        {
           "node": "analyst_tools",
-          "duration_ms": 22.05,
+          "duration_ms": 26.38,
           "status": "ok",
           "preview": "Draft Email ======================================== To: Momina Shahid <momina.shahid@projectteam.com> Subject: Dashboard wording update  Hi Momina Shahid,  I hope you're doing well.  Let Momina know that I will simplify"
         },
         {
           "node": "analyst",
-          "duration_ms": 0.08,
+          "duration_ms": 0.06,
           "status": "ok",
           "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Momina Shahid <momina.shahid@projectteam.com> Subject: Dashboard wording update  Hi Momina Shahid,  I hope yo"
         }
@@ -104,43 +104,43 @@
       "node_traces": [
         {
           "node": "supervisor",
-          "duration_ms": 0.05,
+          "duration_ms": 0.03,
           "status": "ok",
           "preview": "Look up the evaluation rubric reminder and draft a friendly note to Areeba saying I will update the PRD tonight."
         },
         {
           "node": "researcher",
-          "duration_ms": 0.08,
+          "duration_ms": 0.05,
           "status": "ok",
           "preview": ""
         },
         {
           "node": "researcher_tools",
-          "duration_ms": 2.52,
+          "duration_ms": 1256.77,
           "status": "ok",
-          "preview": "From: Dr. Bilal Ahmed <bilal.ahmed@university.edu> Subject: Updated evaluation rubric attached Date: 2026-05-04 13:11 Category: course Priority: medium Action required: yes Preview: Please use the attached rubric when fi"
+          "preview": "Gmail is not connected, so showing grounded sample inbox matches.  From: Dr. Bilal Ahmed <bilal.ahmed@university.edu> Subject: Updated evaluation rubric attached Date: 2026-05-04 13:11 Category: course Priority: medium A"
         },
         {
           "node": "researcher",
-          "duration_ms": 0.05,
+          "duration_ms": 0.35,
           "status": "ok",
-          "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: From: Dr. Bilal Ahmed <bilal.ahmed@university.edu> - Draft the final user-facing response or email based on this evidence."
+          "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: Gmail is not connected, so showing grounded sample inbox matches. - Draft the final user-facing response or email based on this ev"
         },
         {
           "node": "analyst",
-          "duration_ms": 0.09,
+          "duration_ms": 0.18,
           "status": "ok",
           "preview": ""
         },
         {
           "node": "analyst_tools",
-          "duration_ms": 75.54,
+          "duration_ms": 37.26,
           "status": "ok",
           "preview": "Draft Email ======================================== To: Areeba Khan <areeba.khan@projectteam.com> Subject: PRD update tonight  Hi Areeba Khan,  I hope you're doing well.  Tell Areeba that I will update the PRD according"
         },
         {
           "node": "analyst",
-          "duration_ms": 0.09,
+          "duration_ms": 0.1,
           "status": "ok",
           "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Areeba Khan <areeba.khan@projectteam.com> Subject: PRD update tonight  Hi Areeba Khan,  I hope you're doing w"
         }
@@ -159,37 +159,37 @@
         },
         {
           "node": "researcher",
-          "duration_ms": 0.09,
+          "duration_ms": 0.12,
           "status": "ok",
           "preview": ""
         },
         {
           "node": "researcher_tools",
-          "duration_ms": 19.64,
+          "duration_ms": 24.56,
           "status": "ok",
           "preview": "ID: project_deadlines-deadline_001 doc_type: deadline_record department: task_management priority_level: high source_file: project_deadlines.csv content: Title: Select AI407 viva slot Due date: 2026-05-07 17:00 Owner: Ha"
         },
         {
           "node": "researcher",
-          "duration_ms": 0.06,
+          "duration_ms": 0.07,
           "status": "ok",
           "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: project_deadlines-deadline_001 - Draft the final user-facing response or email based on this evidence."
         },
         {
           "node": "analyst",
-          "duration_ms": 0.06,
+          "duration_ms": 0.09,
           "status": "ok",
           "preview": ""
         },
         {
           "node": "analyst_tools",
-          "duration_ms": 19.85,
+          "duration_ms": 29.34,
           "status": "ok",
           "preview": "Draft Email ======================================== To: Dr. Sana Qureshi <sana.qureshi@university.edu> Subject: AI407 viva slot selection  Hi Dr. Sana Qureshi,  I hope you are doing well.  Confirm that I will choose my "
         },
         {
           "node": "analyst",
-          "duration_ms": 0.06,
+          "duration_ms": 0.11,
           "status": "ok",
           "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Dr. Sana Qureshi <sana.qureshi@university.edu> Subject: AI407 viva slot selection  Hi Dr. Sana Qureshi,  I ho"
         }
@@ -202,43 +202,43 @@
       "node_traces": [
         {
           "node": "supervisor",
-          "duration_ms": 0.03,
+          "duration_ms": 0.04,
           "status": "ok",
           "preview": "Identify the most urgent open deadline and draft a short update to Areeba about the next action."
         },
         {
           "node": "researcher",
-          "duration_ms": 0.05,
+          "duration_ms": 0.11,
           "status": "ok",
           "preview": ""
         },
         {
           "node": "researcher_tools",
-          "duration_ms": 1.93,
+          "duration_ms": 1443.96,
           "status": "ok",
-          "preview": "Important alerts: - Email | Client asked for a simpler dashboard story | from Momina Shahid <momina.shahid@projectteam.com> | priority=medium | action_required=yes - Email | Updated evaluation rubric attached | from Dr. "
+          "preview": "Important alerts: - Email source: grounded sample inbox - Email | Client asked for a simpler dashboard story | from Momina Shahid <momina.shahid@projectteam.com> | priority=medium | action_required=yes - Email | Updated "
         },
         {
           "node": "researcher",
-          "duration_ms": 0.05,
+          "duration_ms": 0.08,
           "status": "ok",
           "preview": "[HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: Important alerts: - Draft the final user-facing response or email based on this evidence."
         },
         {
           "node": "analyst",
-          "duration_ms": 0.06,
+          "duration_ms": 0.09,
           "status": "ok",
           "preview": ""
         },
         {
           "node": "analyst_tools",
-          "duration_ms": 17.59,
+          "duration_ms": 32.85,
           "status": "ok",
           "preview": "Draft Email ======================================== To: Areeba Khan <areeba.khan@projectteam.com> Subject: Urgent deadline status update  Hi Areeba Khan,  I hope you're doing well.  Share a short update about the most u"
         },
         {
           "node": "analyst",
-          "duration_ms": 0.08,
+          "duration_ms": 0.05,
           "status": "ok",
           "preview": "Prepared the final response using grounded evidence.  Draft Email ======================================== To: Areeba Khan <areeba.khan@projectteam.com> Subject: Urgent deadline status update  Hi Areeba Khan,  I hope you"
         }
@@ -249,27 +249,27 @@
   "summary": {
     "supervisor": {
       "average_ms": 0.04,
-      "max_ms": 0.05,
+      "max_ms": 0.06,
       "count": 5.0
     },
     "researcher": {
-      "average_ms": 0.07,
-      "max_ms": 0.1,
+      "average_ms": 0.11,
+      "max_ms": 0.35,
       "count": 10.0
     },
     "researcher_tools": {
-      "average_ms": 1381.53,
-      "max_ms": 6866.59,
+      "average_ms": 2532.6,
+      "max_ms": 9918.53,
       "count": 5.0
     },
     "analyst": {
-      "average_ms": 0.08,
-      "max_ms": 0.1,
+      "average_ms": 0.1,
+      "max_ms": 0.18,
       "count": 10.0
     },
     "analyst_tools": {
-      "average_ms": 30.77,
-      "max_ms": 75.54,
+      "average_ms": 29.68,
+      "max_ms": 37.26,
       "count": 5.0
     }
   }

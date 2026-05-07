@@ -8,9 +8,9 @@
       "max_results": 3
     },
     "faithfulness": 1.0,
-    "answer_relevancy": 0.6672,
+    "answer_relevancy": 0.6393,
     "tool_call_accuracy": 1.0,
-    "answer": "From: LinkedIn Jobs <jobs-listings@linkedin.com>\nSubject: 12 new machine learning roles for you\nDate: 2026-05-05 08:03\nCategory: newsletter\nPriority: low\nAction required: no\nPreview: Here are roles based on your recent searches and applications.\n\n---\n\nFrom: Momina Shahid <momina.shahid@projectteam.com>\nSubject: Client asked for a simpler dashboard story\nDate: 2026-05-04 18:46\nCategory: team\nPriority: medium\nAction required: yes\nPreview: The sponsor wants fewer technical terms in the demo. Let's reframe the value around faster follow-up and missed-deadline prevention.\n\n---\n\nFrom: Dr. Bilal Ahmed <bilal.ahmed@university.edu>\nSubject: Updated evaluation rubric attached\nDate: 2026-05-04 13:11\nCategory: course\nPriority: medium\nAction required: yes\nPreview: Please use the attached rubric when finalizing your PRD and architecture submission. Viva weightage remains 30 percent."
+    "answer": "Gmail is not connected, so showing grounded sample inbox data.\n\nFrom: LinkedIn Jobs <jobs-listings@linkedin.com>\nSubject: 12 new machine learning roles for you\nDate: 2026-05-05 08:03\nCategory: newsletter\nPriority: low\nAction required: no\nPreview: Here are roles based on your recent searches and applications.\n\n---\n\nFrom: Momina Shahid <momina.shahid@projectteam.com>\nSubject: Client asked for a simpler dashboard story\nDate: 2026-05-04 18:46\nCategory: team\nPriority: medium\nAction required: yes\nPreview: The sponsor wants fewer technical terms in the demo. Let's reframe the value around faster follow-up and missed-deadline prevention.\n\n---\n\nFrom: Dr. Bilal Ahmed <bilal.ahmed@university.edu>\nSubject: Updated evaluation rubric attached\nDate: 2026-05-04 13:11\nCategory: course\nPriority: medium\nAction required: yes\nPreview: Please use the attached rubric when finalizing your PRD and architecture submission. Viva weightage remains 30 percent."
   },
   {
     "case_id": "case_02_recruiter_resume_request",
@@ -36,9 +36,9 @@
       "date": "2026-05-04"
     },
     "faithfulness": 1.0,
-    "answer_relevancy": 0.5427,
+    "answer_relevancy": 0.6022,
     "tool_call_accuracy": 1.0,
-    "answer": "From: Momina Shahid <momina.shahid@projectteam.com>\nSubject: Client asked for a simpler dashboard story\nDate: 2026-05-04 18:46\nCategory: team\nPriority: medium\nAction required: yes\nPreview: The sponsor wants fewer technical terms in the demo. Let's reframe the value around faster follow-up and missed-deadline prevention.\n\n---\n\nFrom: Dr. Bilal Ahmed <bilal.ahmed@university.edu>\nSubject: Updated evaluation rubric attached\nDate: 2026-05-04 13:11\nCategory: course\nPriority: medium\nAction required: yes\nPreview: Please use the attached rubric when finalizing your PRD and architecture submission. Viva weightage remains 30 percent.\n\n---\n\nFrom: GitHub <noreply@github.com>\nSubject: Code scanning alert in capstone repository\nDate: 2026-05-04 07:58\nCategory: system\nPriority: low\nAction required: no\nPreview: Dependabot identified one moderate vulnerability in a development dependency. Review the alert when convenient."
+    "answer": "Gmail is not connected, so showing grounded sample inbox data.\n\nFrom: Momina Shahid <momina.shahid@projectteam.com>\nSubject: Client asked for a simpler dashboard story\nDate: 2026-05-04 18:46\nCategory: team\nPriority: medium\nAction required: yes\nPreview: The sponsor wants fewer technical terms in the demo. Let's reframe the value around faster follow-up and missed-deadline prevention.\n\n---\n\nFrom: Dr. Bilal Ahmed <bilal.ahmed@university.edu>\nSubject: Updated evaluation rubric attached\nDate: 2026-05-04 13:11\nCategory: course\nPriority: medium\nAction required: yes\nPreview: Please use the attached rubric when finalizing your PRD and architecture submission. Viva weightage remains 30 percent.\n\n---\n\nFrom: GitHub <noreply@github.com>\nSubject: Code scanning alert in capstone repository\nDate: 2026-05-04 07:58\nCategory: system\nPriority: low\nAction required: no\nPreview: Dependabot identified one moderate vulnerability in a development dependency. Review the alert when convenient."
   },
   {
     "case_id": "case_04_last_two_day_summary",
@@ -49,9 +49,9 @@
       "date": "last 2 days"
     },
     "faithfulness": 1.0,
-    "answer_relevancy": 0.5658,
+    "answer_relevancy": 0.5597,
     "tool_call_accuracy": 1.0,
-    "answer": "Email summary for last 2 day(s):\n- Total emails: 4\n- Urgent or action-required emails: 2\n\nHighlights:\n- 12 new machine learning roles for you | from LinkedIn Jobs <jobs-listings@linkedin.com> | priority=low | action_required=no\n- Client asked for a simpler dashboard story | from Momina Shahid <momina.shahid@projectteam.com> | priority=medium | action_required=yes\n- Updated evaluation rubric attached | from Dr. Bilal Ahmed <bilal.ahmed@university.edu> | priority=medium | action_required=yes\n- Code scanning alert in capstone repository | from GitHub <noreply@github.com> | priority=low | action_required=no"
+    "answer": "Email summary for last 2 day(s):\n- Data source: grounded sample inbox\n- Total emails: 4\n- Urgent or action-required emails: 2\n\nHighlights:\n- 12 new machine learning roles for you | from LinkedIn Jobs <jobs-listings@linkedin.com> | priority=low | action_required=no\n- Client asked for a simpler dashboard story | from Momina Shahid <momina.shahid@projectteam.com> | priority=medium | action_required=yes\n- Updated evaluation rubric attached | from Dr. Bilal Ahmed <bilal.ahmed@university.edu> | priority=medium | action_required=yes\n- Code scanning alert in capstone repository | from GitHub <noreply@github.com> | priority=low | action_required=no"
   },
   {
     "case_id": "case_05_urgent_now",
@@ -62,9 +62,9 @@
       "max_results": 5
     },
     "faithfulness": 1.0,
-    "answer_relevancy": 0.5817,
+    "answer_relevancy": 0.5777,
     "tool_call_accuracy": 1.0,
-    "answer": "Important alerts:\n- Email | Client asked for a simpler dashboard story | from Momina Shahid <momina.shahid@projectteam.com> | priority=medium | action_required=yes\n- Email | Updated evaluation rubric attached | from Dr. Bilal Ahmed <bilal.ahmed@university.edu> | priority=medium | action_required=yes\n- Email | Merit scholarship renewal reminder | from Office of Student Affairs <student.affairs@university.edu> | priority=medium | action_required=yes\n- Email | Need your slides for Thursday demo | from Areeba Khan <areeba.khan@projectteam.com> | priority=high | action_required=yes\n- Email | Shortlisted for AI Intern interview | from Talent Team <careers@neuralbridge.ai> | priority=high | action_required=yes\n- Deadline | Share architecture slides with team | due 2026-05-05 22:00 | status=in_progress\n- Deadline | Simplify sponsor demo storyline | due 2026-05-06 18:00 | status=open\n- Deadline | Upload updated resume for internship interview | due 2026-05-06 23:59 | status=open\n- Deadline | Select AI407 viva slot | due 2026-05-07 17:00 | status=open"
+    "answer": "Important alerts:\n- Email source: grounded sample inbox\n- Email | Client asked for a simpler dashboard story | from Momina Shahid <momina.shahid@projectteam.com> | priority=medium | action_required=yes\n- Email | Updated evaluation rubric attached | from Dr. Bilal Ahmed <bilal.ahmed@university.edu> | priority=medium | action_required=yes\n- Email | Merit scholarship renewal reminder | from Office of Student Affairs <student.affairs@university.edu> | priority=medium | action_required=yes\n- Email | Need your slides for Thursday demo | from Areeba Khan <areeba.khan@projectteam.com> | priority=high | action_required=yes\n- Email | Shortlisted for AI Intern interview | from Talent Team <careers@neuralbridge.ai> | priority=high | action_required=yes\n- Deadline | Share architecture slides with team | due 2026-05-05 22:00 | status=in_progress\n- Deadline | Simplify sponsor demo storyline | due 2026-05-06 18:00 | status=open\n- Deadline | Upload updated resume for internship interview | due 2026-05-06 23:59 | status=open\n- Deadline | Select AI407 viva slot | due 2026-05-07 17:00 | status=open"
   },
   {
     "case_id": "case_06_recent_replies",
@@ -102,9 +102,9 @@
       "max_results": 5
     },
     "faithfulness": 1.0,
-    "answer_relevancy": 0.7227,
+    "answer_relevancy": 0.5962,
     "tool_call_accuracy": 1.0,
-    "answer": "From: Dr. Bilal Ahmed <bilal.ahmed@university.edu>\nSubject: Updated evaluation rubric attached\nDate: 2026-05-04 13:11\nCategory: course\nPriority: medium\nAction required: yes\nPreview: Please use the attached rubric when finalizing your PRD and architecture submission. Viva weightage remains 30 percent."
+    "answer": "Gmail is not connected, so showing grounded sample inbox matches.\n\nFrom: Dr. Bilal Ahmed <bilal.ahmed@university.edu>\nSubject: Updated evaluation rubric attached\nDate: 2026-05-04 13:11\nCategory: course\nPriority: medium\nAction required: yes\nPreview: Please use the attached rubric when finalizing your PRD and architecture submission. Viva weightage remains 30 percent."
   },
   {
     "case_id": "case_09_github_alert_search",
@@ -116,9 +116,9 @@
       "max_results": 5
     },
     "faithfulness": 1.0,
-    "answer_relevancy": 0.737,
+    "answer_relevancy": 0.5685,
     "tool_call_accuracy": 1.0,
-    "answer": "From: GitHub <noreply@github.com>\nSubject: Code scanning alert in capstone repository\nDate: 2026-05-04 07:58\nCategory: system\nPriority: low\nAction required: no\nPreview: Dependabot identified one moderate vulnerability in a development dependency. Review the alert when convenient."
+    "answer": "Gmail is not connected, so showing grounded sample inbox matches.\n\nFrom: GitHub <noreply@github.com>\nSubject: Code scanning alert in capstone repository\nDate: 2026-05-04 07:58\nCategory: system\nPriority: low\nAction required: no\nPreview: Dependabot identified one moderate vulnerability in a development dependency. Review the alert when convenient."
   },
   {
     "case_id": "case_10_draft_resume_reply",

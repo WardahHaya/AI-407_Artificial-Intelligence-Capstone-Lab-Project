@@ -13,7 +13,7 @@
     },
     {
       "metric": "relevancy",
-      "score": 0.69,
+      "score": 0.678,
       "threshold": 0.6,
       "passed": true
     },

@@ -8,14 +8,24 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from ingest_data import get_collection, ingest_chunks, load_project_chunks
+from runtime_services import (
+    ensure_runtime_dirs,
+    init_schedule_db,
+    list_scheduled_emails,
+    list_stored_files,
+    save_uploaded_bytes,
+    start_scheduler_thread,
+    stop_scheduler_thread,
+)
 from schema import ChatRequest, ChatResponse
 from secured_graph import build_secured_graph
+from tools import deliver_email_message
 
 CHECKPOINT_DB_PATH = Path(os.getenv("CHECKPOINT_DB_PATH", "checkpoint_db.sqlite"))
 
@@ -126,6 +136,8 @@ def create_app(model=None) -> FastAPI:
             chosen_model = ApiDemoModel()
 
         _ensure_checkpoint_parent_exists()
+        ensure_runtime_dirs()
+        init_schedule_db()
         await asyncio.to_thread(_ensure_grounding_ready)
         async with AsyncSqliteSaver.from_conn_string(str(CHECKPOINT_DB_PATH)) as saver:
             if not hasattr(saver.conn, "is_alive"):
@@ -133,7 +145,11 @@ def create_app(model=None) -> FastAPI:
             app.state.checkpointer = saver
             app.state.graph = build_secured_graph(model=chosen_model, checkpointer=saver)
             app.state.model_mode = "demo" if chosen_model is not None else "live"
+            stop_event, thread = start_scheduler_thread(deliver_email_message)
+            app.state.scheduler_stop_event = stop_event
+            app.state.scheduler_thread = thread
             yield
+            stop_scheduler_thread(app.state.scheduler_stop_event, app.state.scheduler_thread)
 
     app = FastAPI(
         title="Buraq Agent API",
@@ -145,6 +161,23 @@ def create_app(model=None) -> FastAPI:
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "mode": app.state.model_mode}
+
+    @app.get("/uploads")
+    async def uploads() -> dict[str, object]:
+        return {"files": list_stored_files()}
+
+    @app.get("/scheduled")
+    async def scheduled() -> dict[str, object]:
+        return {"items": list_scheduled_emails()}
+
+    @app.post("/upload")
+    async def upload(file: UploadFile = File(...)) -> dict[str, object]:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+        stored = save_uploaded_bytes(file.filename or "upload.bin", content, area="uploads")
+        return stored
 
     @app.post("/chat", response_model=ChatResponse)
     async def chat(request: ChatRequest) -> ChatResponse:

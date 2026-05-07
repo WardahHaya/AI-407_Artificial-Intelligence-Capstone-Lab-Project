@@ -20,19 +20,19 @@ T*
 T*
 (Node Timeline \(ms\):) Tj
 T*
-(- supervisor: 0.05 ms | ok | Check whether any recruiter asked for my updated resume and draft a professional reply saying I will send it tonight.) Tj
+(- supervisor: 0.04 ms | ok | Check whether any recruiter asked for my updated resume and draft a professional reply saying I will send it tonight.) Tj
 T*
-(- researcher: 0.10 ms | ok | ) Tj
+(- researcher: 0.09 ms | ok | ) Tj
 T*
-(- researcher_tools: 6866.59 ms | ok | ID: inbox_emails_sample-msg_002 doc_type: incoming_email department: careers priority_level: high source_file: inbox_emails_sample.csv content: Subject: Shortlisted for AI Intern interview From: Talent Team To: hamza@stu) Tj
+(- researcher_tools: 9918.53 ms | ok | ID: inbox_emails_sample-msg_002 doc_type: incoming_email department: careers priority_level: high source_file: inbox_emails_sample.csv content: Subject: Shortlisted for AI Intern interview From: Talent Team To: hamza@stu) Tj
 T*
-(- researcher: 0.08 ms | ok | [HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: inbox_emails_sample-msg_002 - Draft the final user-facing response or email based on this evidence.) Tj
+(- researcher: 0.06 ms | ok | [HANDOFF TO ANALYST] - Grounded evidence gathered for the request. - Key evidence marker: ID: inbox_emails_sample-msg_002 - Draft the final user-facing response or email based on this evidence.) Tj
 T*
-(- analyst: 0.07 ms | ok | ) Tj
+(- analyst: 0.12 ms | ok | ) Tj
 T*
-(- analyst_tools: 18.81 ms | ok | Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are doing well.  Thank them for the update, confirm that I) Tj
+(- analyst_tools: 22.57 ms | ok | Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are doing well.  Thank them for the update, confirm that I) Tj
 T*
-(- analyst: 0.10 ms | ok | Prepared the final response using grounded evidence.  Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are ) Tj
+(- analyst: 0.09 ms | ok | Prepared the final response using grounded evidence.  Draft Email ======================================== To: Talent Team <careers@neuralbridge.ai> Subject: Updated resume for interview  Hi Talent Team,  I hope you are ) Tj
 T*
 () Tj
 T*
