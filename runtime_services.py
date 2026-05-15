@@ -21,10 +21,35 @@ ALLOWED_STORAGE_AREAS = {
     "downloads": DOWNLOADS_DIR,
 }
 
+def _allowed_local_upload_roots() -> list[Path]:
+    configured = os.getenv("BURAQ_LOCAL_UPLOAD_ROOTS", "").strip()
+    roots: list[Path] = []
+
+    if configured:
+        for entry in configured.split(os.pathsep):
+            candidate = entry.strip()
+            if candidate:
+                roots.append(Path(candidate).expanduser().resolve())
+
+    if not roots:
+        roots.append((RUNTIME_DIR / "local_uploads").resolve())
+
+    return roots
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
 
 def ensure_runtime_dirs() -> None:
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     for directory in ALLOWED_STORAGE_AREAS.values():
+        directory.mkdir(parents=True, exist_ok=True)
+    for directory in _allowed_local_upload_roots():
         directory.mkdir(parents=True, exist_ok=True)
     SCHEDULE_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -58,7 +83,7 @@ def _storage_ref_to_parts(file_ref: str) -> tuple[str, str]:
     return area, safe_name
 
 
-def resolve_file_reference(file_ref: str) -> Path:
+def resolve_file_reference(file_ref: str, allow_local: bool = False) -> Path:
     candidate = file_ref.strip()
     if candidate.startswith(STORAGE_SCHEME):
         area, safe_name = _storage_ref_to_parts(candidate)
@@ -67,12 +92,27 @@ def resolve_file_reference(file_ref: str) -> Path:
             raise FileNotFoundError(f"Stored file not found: {candidate}")
         return resolved
 
+    if not allow_local:
+        raise ValueError(
+            "Local file paths are not allowed for this operation. Upload the file into managed storage first."
+        )
+
     local_path = Path(candidate).expanduser()
     if not local_path.is_absolute():
         local_path = Path.cwd() / local_path
     if not local_path.exists():
         raise FileNotFoundError(f"Local file not found: {candidate}")
-    return local_path.resolve()
+
+    resolved = local_path.resolve()
+    allowed_roots = _allowed_local_upload_roots()
+    if not any(_is_within(resolved, root) for root in allowed_roots):
+        allowed_display = ", ".join(str(root) for root in allowed_roots)
+        raise ValueError(
+            "Local file access is sandboxed. Move the file into one of these directories first: "
+            f"{allowed_display}"
+        )
+
+    return resolved
 
 
 def save_uploaded_bytes(filename: str, content: bytes, area: str = "uploads") -> dict[str, object]:
@@ -95,7 +135,11 @@ def save_uploaded_bytes(filename: str, content: bytes, area: str = "uploads") ->
 
 
 def copy_local_file_to_storage(source: str, area: str = "uploads") -> dict[str, object]:
-    source_path = resolve_file_reference(source) if source.strip().startswith(STORAGE_SCHEME) else resolve_file_reference(source)
+    source_path = (
+        resolve_file_reference(source)
+        if source.strip().startswith(STORAGE_SCHEME)
+        else resolve_file_reference(source, allow_local=True)
+    )
     return save_uploaded_bytes(source_path.name, source_path.read_bytes(), area=area)
 
 

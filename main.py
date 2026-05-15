@@ -3,17 +3,21 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import threading
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from ingest_data import get_collection, ingest_chunks, load_project_chunks
+from multi_agent_graph import ScriptedAnalystModel, ScriptedResearcherModel, ScriptedSupervisorModel
 from runtime_services import (
     ensure_runtime_dirs,
     init_schedule_db,
@@ -23,69 +27,88 @@ from runtime_services import (
     start_scheduler_thread,
     stop_scheduler_thread,
 )
-from schema import ChatRequest, ChatResponse
-from secured_graph import build_secured_graph
+from schema import ApprovalDecisionRequest, ApprovalStateResponse, ChatRequest, ChatResponse, ManualApprovalRequest
+from secured_graph import (
+    apply_approval_decision_sync,
+    build_graph_input,
+    build_secured_graph,
+    get_graph_config,
+    inspect_thread_state_sync,
+    snapshot_to_response,
+    stage_manual_action_sync,
+)
 from tools import deliver_email_message
 
 CHECKPOINT_DB_PATH = Path(os.getenv("CHECKPOINT_DB_PATH", "checkpoint_db.sqlite"))
 
 
-class ApiDemoModel:
+class UnavailableRuntimeModel:
+    def invoke(self, messages: list[BaseMessage]) -> AIMessage:
+        raise RuntimeError(
+            "No live model is configured for the API. Set GROQ_API_KEY, or explicitly opt into the limited "
+            "demo bundle with BURAQ_ENABLE_DEMO_MODEL=true."
+        )
+
+
+class DirectDemoModel:
     def invoke(self, messages: list[BaseMessage]) -> AIMessage:
         latest_user_message = next(
             (message.content for message in reversed(messages) if isinstance(message, HumanMessage)),
             "",
         )
-        if "repeat that in one sentence" in latest_user_message.lower():
-            return AIMessage(
-                content=(
-                    "Talent Team asked for your updated resume before May 6 and wants your interview availability."
-                )
-            )
-
-        last_tool_message = next((message for message in reversed(messages) if isinstance(message, ToolMessage)), None)
-        if last_tool_message is None:
-            return AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "search_knowledge_base",
-                        "args": {
-                            "query": "updated resume interview",
-                            "department": "careers",
-                            "top_k": 1,
-                        },
-                        "id": "api_demo_tool_call",
-                        "type": "tool_call",
-                    }
-                ],
-            )
-
         return AIMessage(
             content=(
-                "I found the recruiter request in grounded memory. "
-                "Talent Team asked for the updated resume before May 6 and requested interview availability."
+                "Demo mode is enabled. The deterministic bundle can walk the recruiter grounding flow, but broader "
+                f"requests still need GROQ_API_KEY.\n\nLatest request: {latest_user_message}"
             )
         )
 
 
-def _graph_input(message: str) -> dict[str, object]:
-    return {
-        "messages": [HumanMessage(content=message)],
-        "safety_status": "safe",
-        "guardrail_reason": "",
-        "sanitized_output": "",
-    }
+class RateLimitExceeded(RuntimeError):
+    def __init__(self, retry_after: int) -> None:
+        super().__init__("Rate limit exceeded.")
+        self.retry_after = retry_after
+
+
+class InMemoryRateLimiter:
+    def __init__(self, limit: int, window_seconds: int) -> None:
+        self.limit = limit
+        self.window_seconds = window_seconds
+        self._events: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = threading.Lock()
+
+    def check(self, key: str) -> None:
+        now = time.monotonic()
+        with self._lock:
+            queue = self._events[key]
+            while queue and now - queue[0] >= self.window_seconds:
+                queue.popleft()
+            if len(queue) >= self.limit:
+                retry_after = max(1, int(self.window_seconds - (now - queue[0])))
+                raise RateLimitExceeded(retry_after=retry_after)
+            queue.append(now)
+
+
+def _resolve_runtime_model_bundle() -> tuple[dict[str, Any] | Any | None, str]:
+    if os.getenv("GROQ_API_KEY"):
+        return None, "live"
+
+    if os.getenv("BURAQ_ENABLE_DEMO_MODEL", "false").lower() == "true":
+        return (
+            {
+                "supervisor": ScriptedSupervisorModel(),
+                "direct": DirectDemoModel(),
+                "researcher": ScriptedResearcherModel(),
+                "analyst": ScriptedAnalystModel(),
+            },
+            "demo",
+        )
+
+    return UnavailableRuntimeModel(), "unavailable"
 
 
 def _graph_config(thread_id: str) -> dict[str, dict[str, str]]:
-    return {"configurable": {"thread_id": str(thread_id)}}
-
-
-def _status_from_result(result: dict[str, Any]) -> str:
-    if result.get("safety_status") == "unsafe":
-        return "blocked"
-    return "completed"
+    return get_graph_config(thread_id)
 
 
 def _chunk_to_text(chunk: Any) -> str:
@@ -121,19 +144,28 @@ def _ensure_grounding_ready(max_attempts: int = 10) -> None:
             last_error = exc
             if attempt == max_attempts:
                 break
-            import time
-
             time.sleep(3)
 
     raise RuntimeError(f"Grounding store startup failed after {max_attempts} attempts: {last_error}")
 
 
+def _auth_required() -> bool:
+    return bool(os.getenv("BURAQ_API_KEY", "").strip())
+
+
+def _get_client_key(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if forwarded_for:
+        return forwarded_for
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown-client"
+
+
 def create_app(model=None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        chosen_model = model
-        if chosen_model is None and not os.getenv("GROQ_API_KEY"):
-            chosen_model = ApiDemoModel()
+        chosen_model, mode = _resolve_runtime_model_bundle() if model is None else (model, "custom")
 
         _ensure_checkpoint_parent_exists()
         ensure_runtime_dirs()
@@ -144,7 +176,12 @@ def create_app(model=None) -> FastAPI:
                 saver.conn.is_alive = lambda: True
             app.state.checkpointer = saver
             app.state.graph = build_secured_graph(model=chosen_model, checkpointer=saver)
-            app.state.model_mode = "demo" if chosen_model is not None else "live"
+            app.state.model_mode = mode
+            app.state.api_key = os.getenv("BURAQ_API_KEY", "").strip()
+            app.state.rate_limiter = InMemoryRateLimiter(
+                limit=int(os.getenv("BURAQ_RATE_LIMIT_COUNT", "60")),
+                window_seconds=int(os.getenv("BURAQ_RATE_LIMIT_WINDOW_SECONDS", "60")),
+            )
             stop_event, thread = start_scheduler_thread(deliver_email_message)
             app.state.scheduler_stop_event = stop_event
             app.state.scheduler_thread = thread
@@ -153,14 +190,43 @@ def create_app(model=None) -> FastAPI:
 
     app = FastAPI(
         title="Buraq Agent API",
-        version="1.0.0",
-        description="FastAPI wrapper around the LangGraph-based Buraq Gmail agent.",
+        version="2.0.0",
+        description="FastAPI wrapper around the secured multi-agent LangGraph runtime with checkpointed HITL approval.",
         lifespan=lifespan,
     )
 
+    @app.middleware("http")
+    async def security_middleware(request: Request, call_next):
+        if request.url.path != "/health":
+            api_key = app.state.api_key
+            if api_key:
+                provided = request.headers.get("x-api-key", "").strip()
+                if provided != api_key:
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "Missing or invalid X-API-Key header."},
+                    )
+
+            try:
+                app.state.rate_limiter.check(_get_client_key(request))
+            except RateLimitExceeded as exc:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Rate limit exceeded."},
+                    headers={"Retry-After": str(exc.retry_after)},
+                )
+
+        return await call_next(request)
+
     @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok", "mode": app.state.model_mode}
+    async def health() -> dict[str, object]:
+        return {
+            "status": "ok",
+            "mode": app.state.model_mode,
+            "auth_required": _auth_required(),
+            "rate_limit_count": app.state.rate_limiter.limit,
+            "rate_limit_window_seconds": app.state.rate_limiter.window_seconds,
+        }
 
     @app.get("/uploads")
     async def uploads() -> dict[str, object]:
@@ -181,37 +247,49 @@ def create_app(model=None) -> FastAPI:
 
     @app.post("/chat", response_model=ChatResponse)
     async def chat(request: ChatRequest) -> ChatResponse:
+        config = _graph_config(str(request.thread_id))
         try:
-            result = await app.state.graph.ainvoke(_graph_input(request.message), _graph_config(str(request.thread_id)))
+            existing_snapshot = await app.state.graph.aget_state(config)
+            existing_state = snapshot_to_response(existing_snapshot)
+            if existing_state["status"] == "awaiting_approval":
+                response_state = existing_state
+            else:
+                await app.state.graph.ainvoke(build_graph_input(request.message), config)
+                snapshot = await app.state.graph.aget_state(config)
+                response_state = snapshot_to_response(snapshot)
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Agent execution failed: {exc}") from exc
 
-        final_answer = str(result.get("sanitized_output") or result["messages"][-1].content)
         return ChatResponse(
             thread_id=str(request.thread_id),
             message_id=str(uuid4()),
-            final_answer=final_answer,
-            status=_status_from_result(result),
+            final_answer=str(response_state["final_answer"]),
+            status=str(response_state["status"]),
+            pending_action=response_state.get("pending_action"),
         )
 
     @app.post("/stream")
     async def stream(request: ChatRequest) -> StreamingResponse:
         async def event_stream():
             response_id = str(uuid4())
+            config = _graph_config(str(request.thread_id))
             yield f"event: metadata\ndata: {json.dumps({'thread_id': str(request.thread_id), 'message_id': response_id})}\n\n"
             try:
-                async for chunk in app.state.graph.astream(
-                    _graph_input(request.message),
-                    _graph_config(str(request.thread_id)),
-                    stream_mode="updates",
-                ):
-                    text = _chunk_to_text(chunk)
-                    if not text:
-                        continue
-                    payload = {"status": "streaming", "chunk": text}
-                    yield f"event: chunk\ndata: {json.dumps(payload)}\n\n"
+                existing_snapshot = await app.state.graph.aget_state(config)
+                existing_state = snapshot_to_response(existing_snapshot)
+                if existing_state["status"] != "awaiting_approval":
+                    async for chunk in app.state.graph.astream(
+                        build_graph_input(request.message),
+                        config,
+                        stream_mode="updates",
+                    ):
+                        text = _chunk_to_text(chunk)
+                        if not text:
+                            continue
+                        payload = {"status": "streaming", "chunk": text}
+                        yield f"event: chunk\ndata: {json.dumps(payload)}\n\n"
             except RuntimeError as exc:
                 payload = {"status": "error", "detail": str(exc)}
                 yield f"event: error\ndata: {json.dumps(payload)}\n\n"
@@ -221,13 +299,97 @@ def create_app(model=None) -> FastAPI:
                 yield f"event: error\ndata: {json.dumps(payload)}\n\n"
                 return
 
-            state_snapshot = await app.state.graph.aget_state(_graph_config(str(request.thread_id)))
-            values = state_snapshot.values or {}
-            final_answer = str(values.get("sanitized_output") or values.get("messages", [])[-1].content)
-            payload = {"status": "completed", "final_answer": final_answer}
+            snapshot = await app.state.graph.aget_state(config)
+            response_state = snapshot_to_response(snapshot)
+            payload = {
+                "status": response_state["status"],
+                "final_answer": response_state["final_answer"],
+                "pending_action": response_state.get("pending_action"),
+            }
             yield f"event: done\ndata: {json.dumps(payload)}\n\n"
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+    @app.get("/approval/{thread_id}", response_model=ApprovalStateResponse)
+    async def approval_state(thread_id: str) -> ApprovalStateResponse:
+        try:
+            state = await asyncio.to_thread(inspect_thread_state_sync, CHECKPOINT_DB_PATH, thread_id)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not inspect approval state: {exc}") from exc
+
+        return ApprovalStateResponse(
+            thread_id=str(thread_id),
+            status=str(state["status"]),
+            final_answer=str(state["final_answer"]),
+            pending_action=state.get("pending_action"),
+            next_nodes=list(state.get("next_nodes", [])),
+        )
+
+    @app.post("/approval/decision", response_model=ApprovalStateResponse)
+    async def approval_decision(request: ApprovalDecisionRequest) -> ApprovalStateResponse:
+        edited_fields = {
+            "to": request.edited_to,
+            "subject": request.edited_subject,
+            "body": request.edited_body,
+            "send_at": request.edited_send_at,
+            "attachment_ref": request.edited_attachment_ref,
+        }
+        try:
+            state = await asyncio.to_thread(
+                apply_approval_decision_sync,
+                CHECKPOINT_DB_PATH,
+                str(request.thread_id),
+                request.decision,
+                edited_fields,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not apply approval decision: {exc}") from exc
+
+        return ApprovalStateResponse(
+            thread_id=str(request.thread_id),
+            status=str(state["status"]),
+            final_answer=str(state["final_answer"]),
+            pending_action=state.get("pending_action"),
+            next_nodes=list(state.get("next_nodes", [])),
+        )
+
+    @app.post("/approval/manual", response_model=ApprovalStateResponse)
+    async def manual_review(request: ManualApprovalRequest) -> ApprovalStateResponse:
+        pending_action = {
+            "action_type": request.action_type,
+            "source_tool": "manual_compose",
+            "to": request.to,
+            "subject": request.subject,
+            "body": request.body,
+        }
+        if request.send_at:
+            pending_action["send_at"] = request.send_at
+        if request.attachment_ref:
+            pending_action["attachment_ref"] = request.attachment_ref
+
+        try:
+            state = await asyncio.to_thread(
+                stage_manual_action_sync,
+                CHECKPOINT_DB_PATH,
+                str(request.thread_id),
+                pending_action,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Could not stage manual approval: {exc}") from exc
+
+        return ApprovalStateResponse(
+            thread_id=str(request.thread_id),
+            status=str(state["status"]),
+            final_answer=str(state["final_answer"]),
+            pending_action=state.get("pending_action"),
+            next_nodes=list(state.get("next_nodes", [])),
+        )
 
     return app
 

@@ -11,8 +11,15 @@ from uuid import uuid4
 import requests
 import streamlit as st
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage
+from multi_agent_graph import ScriptedAnalystModel, ScriptedResearcherModel, ScriptedSupervisorModel
 from runtime_services import ensure_runtime_dirs, init_schedule_db, list_scheduled_emails, list_stored_files, save_uploaded_bytes
+from secured_graph import (
+    apply_approval_decision_sync,
+    inspect_thread_state_sync,
+    run_graph_turn_sync,
+    stage_manual_action_sync,
+)
 
 load_dotenv()
 
@@ -40,43 +47,15 @@ def _load_runtime_secrets_into_env() -> None:
 
 
 DB_PATH = Path(_get_setting("FEEDBACK_DB_PATH", "feedback_log.db") or "feedback_log.db")
+CHECKPOINT_DB_PATH = Path(_get_setting("CHECKPOINT_DB_PATH", "checkpoint_db.sqlite") or "checkpoint_db.sqlite")
 
 
-class StreamlitDemoModel:
-    def invoke(self, messages: list[BaseMessage]) -> AIMessage:
-        latest_user_message = next(
-            (message.content for message in reversed(messages) if isinstance(message, HumanMessage)),
-            "",
-        )
-        if "repeat that in one sentence" in latest_user_message.lower():
-            return AIMessage(
-                content=(
-                    "Talent Team asked for your updated resume before May 6 and wants your interview availability."
-                )
-            )
-
-        last_tool_message = next((message for message in reversed(messages) if isinstance(message, ToolMessage)), None)
-        if last_tool_message is None:
-            return AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "search_knowledge_base",
-                        "args": {
-                            "query": "updated resume interview",
-                            "department": "careers",
-                            "top_k": 1,
-                        },
-                        "id": "streamlit_demo_tool_call",
-                        "type": "tool_call",
-                    }
-                ],
-            )
-
+class LocalDirectDemoModel:
+    def invoke(self, messages) -> AIMessage:
         return AIMessage(
             content=(
-                "I found the recruiter request in grounded memory. "
-                "Talent Team asked for the updated resume before May 6 and requested interview availability."
+                "Demo mode is enabled locally. The scripted bundle can demonstrate the recruiter flow, but broader "
+                "requests still need GROQ_API_KEY."
             )
         )
 
@@ -88,27 +67,27 @@ def _get_api_base_url() -> str | None:
     return None
 
 
-def _history_to_messages(chat_history: list[dict[str, str]]) -> list[BaseMessage]:
-    messages: list[BaseMessage] = []
-    for turn in chat_history:
-        messages.append(HumanMessage(content=turn["user_input"]))
-        messages.append(AIMessage(content=turn["agent_response"]))
-    return messages
+def _auth_headers() -> dict[str, str]:
+    api_key = _get_setting("AGENT_API_KEY") or _get_setting("BURAQ_API_KEY")
+    if not api_key:
+        return {}
+    return {"X-API-Key": api_key}
 
 
-def _graph_input(messages: list[BaseMessage]) -> dict[str, object]:
-    return {
-        "messages": messages,
-        "safety_status": "safe",
-        "guardrail_reason": "",
-        "sanitized_output": "",
-    }
-
-
-def _status_from_result(result: dict[str, object]) -> str:
-    if result.get("safety_status") == "unsafe":
-        return "blocked"
-    return "completed"
+def _resolve_local_model_bundle() -> tuple[dict[str, object] | None, str]:
+    if os.getenv("GROQ_API_KEY"):
+        return None, "live"
+    if os.getenv("BURAQ_ENABLE_DEMO_MODEL", "false").lower() == "true":
+        return (
+            {
+                "supervisor": ScriptedSupervisorModel(),
+                "direct": LocalDirectDemoModel(),
+                "researcher": ScriptedResearcherModel(),
+                "analyst": ScriptedAnalystModel(),
+            },
+            "demo",
+        )
+    return None, "unavailable"
 
 
 @st.cache_resource(show_spinner=False)
@@ -116,15 +95,10 @@ def _get_local_runtime() -> dict[str, object]:
     _load_runtime_secrets_into_env()
 
     from ingest_data import get_collection, ingest_chunks, load_project_chunks
-    from secured_graph import build_secured_graph
     from tools import deliver_email_message
     from runtime_services import start_scheduler_thread
 
-    chosen_model = None
-    mode = "live"
-    if not os.getenv("GROQ_API_KEY"):
-        chosen_model = StreamlitDemoModel()
-        mode = "demo"
+    chosen_model, mode = _resolve_local_model_bundle()
 
     ensure_runtime_dirs()
     init_schedule_db()
@@ -135,7 +109,7 @@ def _get_local_runtime() -> dict[str, object]:
     stop_event, thread = start_scheduler_thread(deliver_email_message)
 
     return {
-        "graph": build_secured_graph(model=chosen_model),
+        "model": chosen_model,
         "mode": mode,
         "scheduler_stop_event": stop_event,
         "scheduler_thread": thread,
@@ -203,6 +177,7 @@ def _send_remote_chat_request(message: str, thread_id: str) -> dict[str, str]:
     response = requests.post(
         f"{api_base_url}/chat",
         json={"message": message, "thread_id": thread_id},
+        headers=_auth_headers(),
         timeout=90,
     )
     response.raise_for_status()
@@ -213,14 +188,18 @@ def _send_remote_chat_request(message: str, thread_id: str) -> dict[str, str]:
 
 def _send_local_chat_request(message: str, thread_id: str, chat_history: list[dict[str, str]]) -> dict[str, str]:
     runtime = _get_local_runtime()
-    history = _history_to_messages(chat_history)
-    result = runtime["graph"].invoke(_graph_input([*history, HumanMessage(content=message)]))
-    final_answer = str(result.get("sanitized_output") or result["messages"][-1].content)
+    result = run_graph_turn_sync(
+        checkpoint_db_path=CHECKPOINT_DB_PATH,
+        thread_id=str(thread_id),
+        user_message=message,
+        model=runtime["model"],
+    )
     return {
         "thread_id": str(thread_id),
         "message_id": str(uuid4()),
-        "final_answer": final_answer,
-        "status": _status_from_result(result),
+        "final_answer": str(result["final_answer"]),
+        "status": str(result["status"]),
+        "pending_action": result.get("pending_action"),
         "mode": str(runtime["mode"]),
     }
 
@@ -231,6 +210,120 @@ def send_chat_request(message: str, thread_id: str, chat_history: list[dict[str,
     return _send_local_chat_request(message, thread_id, chat_history)
 
 
+def _get_remote_pending_review(thread_id: str) -> dict[str, object]:
+    api_base_url = _get_api_base_url()
+    if not api_base_url:
+        raise RuntimeError("AGENT_API_BASE_URL is not configured.")
+
+    response = requests.get(
+        f"{api_base_url}/approval/{thread_id}",
+        headers=_auth_headers(),
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _get_local_pending_review(thread_id: str) -> dict[str, object]:
+    _get_local_runtime()
+    return inspect_thread_state_sync(CHECKPOINT_DB_PATH, str(thread_id))
+
+
+def get_pending_review(thread_id: str) -> dict[str, object]:
+    if _get_api_base_url():
+        return _get_remote_pending_review(thread_id)
+    return _get_local_pending_review(thread_id)
+
+
+def _submit_remote_approval_decision(thread_id: str, decision: str, edited_fields: dict[str, str | None]) -> dict[str, object]:
+    api_base_url = _get_api_base_url()
+    if not api_base_url:
+        raise RuntimeError("AGENT_API_BASE_URL is not configured.")
+
+    payload = {
+        "thread_id": thread_id,
+        "decision": decision,
+        "edited_to": edited_fields.get("to"),
+        "edited_subject": edited_fields.get("subject"),
+        "edited_body": edited_fields.get("body"),
+        "edited_send_at": edited_fields.get("send_at"),
+        "edited_attachment_ref": edited_fields.get("attachment_ref"),
+    }
+    response = requests.post(
+        f"{api_base_url}/approval/decision",
+        json=payload,
+        headers=_auth_headers(),
+        timeout=90,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _submit_local_approval_decision(thread_id: str, decision: str, edited_fields: dict[str, str | None]) -> dict[str, object]:
+    _get_local_runtime()
+    return apply_approval_decision_sync(CHECKPOINT_DB_PATH, str(thread_id), decision, edited_fields)
+
+
+def submit_approval_decision(thread_id: str, decision: str, edited_fields: dict[str, str | None]) -> dict[str, object]:
+    if _get_api_base_url():
+        return _submit_remote_approval_decision(thread_id, decision, edited_fields)
+    return _submit_local_approval_decision(thread_id, decision, edited_fields)
+
+
+def _stage_remote_manual_review(thread_id: str, action_type: str, to: str, subject: str, body: str, send_at: str | None, attachment_ref: str | None) -> dict[str, object]:
+    api_base_url = _get_api_base_url()
+    if not api_base_url:
+        raise RuntimeError("AGENT_API_BASE_URL is not configured.")
+
+    payload = {
+        "thread_id": thread_id,
+        "action_type": action_type,
+        "to": to,
+        "subject": subject,
+        "body": body,
+        "send_at": send_at,
+        "attachment_ref": attachment_ref,
+    }
+    response = requests.post(
+        f"{api_base_url}/approval/manual",
+        json=payload,
+        headers=_auth_headers(),
+        timeout=90,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _stage_local_manual_review(thread_id: str, action_type: str, to: str, subject: str, body: str, send_at: str | None, attachment_ref: str | None) -> dict[str, object]:
+    _get_local_runtime()
+    pending_action = {
+        "action_type": action_type,
+        "source_tool": "manual_compose",
+        "to": to,
+        "subject": subject,
+        "body": body,
+    }
+    if send_at:
+        pending_action["send_at"] = send_at
+    if attachment_ref:
+        pending_action["attachment_ref"] = attachment_ref
+    return stage_manual_action_sync(CHECKPOINT_DB_PATH, str(thread_id), pending_action)
+
+
+def stage_manual_review(
+    thread_id: str,
+    action_type: str,
+    to: str,
+    subject: str,
+    body: str,
+    send_at: str | None = None,
+    attachment_ref: str | None = None,
+) -> dict[str, object]:
+    if _get_api_base_url():
+        return _stage_remote_manual_review(thread_id, action_type, to, subject, body, send_at, attachment_ref)
+    return _stage_local_manual_review(thread_id, action_type, to, subject, body, send_at, attachment_ref)
+
+
 def _upload_remote_file(uploaded_file) -> dict[str, object]:
     api_base_url = _get_api_base_url()
     if not api_base_url:
@@ -239,6 +332,7 @@ def _upload_remote_file(uploaded_file) -> dict[str, object]:
     response = requests.post(
         f"{api_base_url}/upload",
         files={"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type or "application/octet-stream")},
+        headers=_auth_headers(),
         timeout=90,
     )
     response.raise_for_status()
@@ -261,7 +355,7 @@ def get_stored_files() -> list[dict[str, object]]:
         api_base_url = _get_api_base_url()
         if not api_base_url:
             return []
-        response = requests.get(f"{api_base_url}/uploads", timeout=30)
+        response = requests.get(f"{api_base_url}/uploads", headers=_auth_headers(), timeout=30)
         response.raise_for_status()
         return list(response.json().get("files", []))
 
@@ -274,7 +368,7 @@ def get_scheduled_items() -> list[dict[str, object]]:
         api_base_url = _get_api_base_url()
         if not api_base_url:
             return []
-        response = requests.get(f"{api_base_url}/scheduled", timeout=30)
+        response = requests.get(f"{api_base_url}/scheduled", headers=_auth_headers(), timeout=30)
         response.raise_for_status()
         return list(response.json().get("items", []))
 
@@ -288,7 +382,9 @@ def _connection_label() -> str:
         return f"Remote API ({api_base_url})"
     if _get_setting("GROQ_API_KEY"):
         return "Local agent (live model)"
-    return "Local agent (demo model)"
+    if (_get_setting("BURAQ_ENABLE_DEMO_MODEL", "false") or "false").lower() == "true":
+        return "Local agent (scripted demo)"
+    return "Local agent (model unavailable)"
 
 
 def _gmail_status_label() -> str:
@@ -886,18 +982,77 @@ def render_chat_history() -> None:
                 render_feedback_controls(turn)
 
 
-def _send_direct_email(to: str, subject: str, body: str, attachment_ref: str | None = None) -> tuple[bool, str]:
-    _load_runtime_secrets_into_env()
-    from tools import deliver_email_message
+def render_pending_approval_panel(panel_key: str) -> None:
+    try:
+        review = get_pending_review(st.session_state["thread_id"])
+    except requests.RequestException as exc:
+        st.error(f"Could not load the pending approval state from the API: {exc}")
+        return
+    except Exception:
+        return
 
-    return deliver_email_message(to=to, subject=subject, body=body, attachment_ref=attachment_ref)
+    action = review.get("pending_action")
+    if review.get("status") != "awaiting_approval" or not action:
+        return
 
+    st.markdown("### Pending Approval")
+    st.markdown(
+        """
+        <div class="surface-card">
+            <p class="mail-title">Outbound action paused at the human-review boundary</p>
+            <p class="section-copy">Edit the staged fields if needed, then approve to execute or cancel to stop it.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-def _schedule_direct_email(to: str, subject: str, body: str, send_at: str) -> str:
-    _load_runtime_secrets_into_env()
-    from tools import schedule_email
+    with st.form(f"approval-form-{panel_key}-{st.session_state['thread_id']}", clear_on_submit=False):
+        edited_to = st.text_input("To", value=str(action.get("to", "")))
+        edited_subject = st.text_input("Subject", value=str(action.get("subject", "")))
+        edited_body = st.text_area("Body", value=str(action.get("body", "")), height=220)
+        edited_send_at = st.text_input(
+            "Send at",
+            value=str(action.get("send_at", "")),
+            disabled=action.get("action_type") != "schedule_email",
+        )
+        edited_attachment_ref = st.text_input(
+            "Attachment reference",
+            value=str(action.get("attachment_ref", "")),
+        )
 
-    return str(schedule_email.invoke({"to": to, "subject": subject, "body": body, "send_at": send_at}))
+        approve = st.form_submit_button("Approve and Execute", use_container_width=True)
+        cancel = st.form_submit_button("Cancel Action", use_container_width=True)
+
+    if approve or cancel:
+        decision = "approve" if approve else "cancel"
+        try:
+            result = submit_approval_decision(
+                st.session_state["thread_id"],
+                decision,
+                {
+                    "to": edited_to,
+                    "subject": edited_subject,
+                    "body": edited_body,
+                    "send_at": edited_send_at,
+                    "attachment_ref": edited_attachment_ref,
+                },
+            )
+        except requests.RequestException as exc:
+            st.error(f"Approval request failed: {exc}")
+            return
+        except Exception as exc:
+            st.error(f"Approval request failed: {exc}")
+            return
+
+        st.session_state["chat_history"].append(
+            {
+                "message_id": str(uuid4()),
+                "user_input": f"Human review decision: {decision}",
+                "agent_response": str(result.get("final_answer", "")),
+                "status": str(result.get("status", "completed")),
+            }
+        )
+        st.rerun()
 
 
 def _sync_live_emails() -> str:
@@ -968,9 +1123,16 @@ def render_sidebar(snapshot: dict[str, object]) -> None:
             )
 
         if not _get_api_base_url() and not _get_setting("GROQ_API_KEY"):
-            st.info(
-                "Chat is using the built-in demo model right now. The inbox widgets can still use live Gmail if OAuth is connected."
-            )
+            if (_get_setting("BURAQ_ENABLE_DEMO_MODEL", "false") or "false").lower() == "true":
+                st.info(
+                    "The local workspace is using the explicitly enabled scripted demo bundle. Configure GROQ_API_KEY "
+                    "for live multi-agent execution."
+                )
+            else:
+                st.warning(
+                    "No local model is configured. Add GROQ_API_KEY for live execution, or opt into the limited "
+                    "scripted demo bundle with BURAQ_ENABLE_DEMO_MODEL=true."
+                )
 
 
 def render_header(snapshot: dict[str, object]) -> None:
@@ -1085,20 +1247,22 @@ def render_ask_tab() -> None:
         '<p class="section-copy">Use chat for open-ended reasoning, drafting, grounded search, or Gmail follow-up questions.</p>',
         unsafe_allow_html=True,
     )
+    render_pending_approval_panel("ask")
     render_chat_history()
 
 
 def render_compose_tab() -> None:
     st.markdown('<p class="section-title">Compose, Store, and Schedule</p>', unsafe_allow_html=True)
     st.markdown(
-        '<p class="section-copy">Direct controls for attachments, sending, queueing, and live inbox maintenance.</p>',
+        '<p class="section-copy">Direct controls for attachments, staged outbound review, queueing, and live inbox maintenance.</p>',
         unsafe_allow_html=True,
     )
+    render_pending_approval_panel("compose")
 
     left_col, right_col = st.columns([1.12, 0.88], gap="large")
 
     with left_col:
-        st.markdown("### Send an Email")
+        st.markdown("### Stage an Email for Approval")
         stored_files = get_stored_files()
         file_options = ["No attachment"] + [str(item["ref"]) for item in stored_files]
 
@@ -1107,25 +1271,29 @@ def render_compose_tab() -> None:
             subject = st.text_input("Subject", placeholder="What is this email about?")
             body = st.text_area("Message", height=200, placeholder="Write the message body here.")
             attachment_ref = st.selectbox("Attachment", options=file_options)
-            send_now = st.form_submit_button("Send Now", use_container_width=True)
+            send_now = st.form_submit_button("Stage for Approval", use_container_width=True)
 
         if send_now:
             if not to_address.strip() or not subject.strip() or not body.strip():
                 st.warning("To, subject, and message body are all required.")
             else:
                 selected_ref = None if attachment_ref == "No attachment" else attachment_ref
-                success, detail = _send_direct_email(
-                    to=to_address.strip(),
-                    subject=subject.strip(),
-                    body=body.strip(),
-                    attachment_ref=selected_ref,
-                )
-                if success:
-                    st.success(detail)
+                try:
+                    stage_manual_review(
+                        st.session_state["thread_id"],
+                        "send_email",
+                        to_address.strip(),
+                        subject.strip(),
+                        body.strip(),
+                        attachment_ref=selected_ref,
+                    )
+                except Exception as exc:
+                    st.error(f"Could not stage the outbound review: {exc}")
                 else:
-                    st.error(detail)
+                    st.success("Outbound email staged for approval.")
+                    st.rerun()
 
-        st.markdown("### Queue for Later")
+        st.markdown("### Stage a Scheduled Email")
         default_time = (datetime.now() + timedelta(hours=1)).replace(second=0, microsecond=0)
         with st.form("schedule-email-form", clear_on_submit=False):
             queue_to = st.text_input("Queue to", key="queue-to", placeholder="name@example.com")
@@ -1138,7 +1306,7 @@ def render_compose_tab() -> None:
             )
             send_date = st.date_input("Send date", value=default_time.date())
             send_time = st.time_input("Send time", value=default_time.time())
-            queue_submit = st.form_submit_button("Schedule Email", use_container_width=True)
+            queue_submit = st.form_submit_button("Stage Schedule for Approval", use_container_width=True)
 
         if queue_submit:
             if not queue_to.strip() or not queue_subject.strip() or not queue_body.strip():
@@ -1146,16 +1314,19 @@ def render_compose_tab() -> None:
             else:
                 scheduled_for = datetime.combine(send_date, send_time)
                 try:
-                    result = _schedule_direct_email(
-                        to=queue_to.strip(),
-                        subject=queue_subject.strip(),
-                        body=queue_body.strip(),
+                    stage_manual_review(
+                        st.session_state["thread_id"],
+                        "schedule_email",
+                        queue_to.strip(),
+                        queue_subject.strip(),
+                        queue_body.strip(),
                         send_at=scheduled_for.strftime("%Y-%m-%d %H:%M:%S"),
                     )
                 except Exception as exc:
-                    st.error(f"Scheduling failed: {exc}")
+                    st.error(f"Could not stage the scheduled review: {exc}")
                 else:
-                    st.success(result)
+                    st.success("Scheduled email staged for approval.")
+                    st.rerun()
 
         st.markdown("### Inbox Utilities")
         utility_cols = st.columns(2)
@@ -1285,8 +1456,8 @@ def _process_prompt(prompt: str) -> None:
         )
     except Exception as exc:
         st.error(
-            "The agent could not complete that request. If you want live local responses, make sure `GROQ_API_KEY` "
-            "is configured.\n\n"
+            "The agent could not complete that request. Configure `GROQ_API_KEY` for live execution, or explicitly "
+            "enable the limited scripted bundle with `BURAQ_ENABLE_DEMO_MODEL=true`.\n\n"
             f"Details: {exc}"
         )
 

@@ -15,28 +15,16 @@ def load_thresholds() -> dict[str, float]:
     return json.loads(THRESHOLD_CONFIG_PATH.read_text(encoding="utf-8"))
 
 
-def maybe_apply_breaking_change(metrics: dict[str, float]) -> dict[str, float]:
-    if os.getenv("BREAK_AGENT_FOR_CI", "false").lower() != "true":
-        return metrics
-
-    degraded = dict(metrics)
-    degraded["average_faithfulness"] = round(metrics["average_faithfulness"] * 0.45, 3)
-    degraded["average_relevancy"] = round(metrics["average_relevancy"] * 0.55, 3)
-    degraded["average_tool_call_accuracy"] = round(metrics["average_tool_call_accuracy"] * 0.7, 3)
-    return degraded
-
-
 def summarize_metrics() -> dict[str, float]:
     runs = run_evaluation()
     write_results(runs)
     write_report(runs)
 
-    metrics = {
+    return {
         "average_faithfulness": sum(run.faithfulness for run in runs) / len(runs),
         "average_relevancy": sum(run.answer_relevancy for run in runs) / len(runs),
         "average_tool_call_accuracy": sum(run.tool_call_accuracy for run in runs) / len(runs),
     }
-    return maybe_apply_breaking_change(metrics)
 
 
 def write_summary(metrics: dict[str, float], thresholds: dict[str, float]) -> list[str]:
@@ -88,7 +76,7 @@ def main() -> int:
     print(f"Report file: {REPORT_PATH}")
     print(f"Summary file: {SUMMARY_RESULTS_PATH}")
     if os.getenv("BREAK_AGENT_FOR_CI", "false").lower() == "true":
-        print("Break mode: enabled (simulated grounding/prompt failure)")
+        print("Break mode: enabled (runtime plan intentionally degraded)")
     else:
         print("Break mode: disabled")
 

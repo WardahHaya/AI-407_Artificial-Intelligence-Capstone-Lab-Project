@@ -1,27 +1,19 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langgraph.graph import END, StateGraph
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 from agents_config import HANDOFF_SIGNAL
-from multi_agent_graph import (
-    MultiAgentState,
-    analyst_node_factory,
-    analyst_router,
-    analyst_tool_node_factory,
-    researcher_node_factory,
-    researcher_router,
-    researcher_tool_node_factory,
-    supervisor_node_factory,
-    supervisor_router,
-)
+from guardrails_config import sanitize_output_text
+from lab7_evaluation import ensure_grounding_ready
+from secured_graph import build_graph_input, build_secured_graph
 
 TRACE_JSON_PATH = Path("observability_traces.json")
 TRACE_PDF_PATH = Path("observability_trace_export.pdf")
@@ -29,16 +21,10 @@ OBSERVABILITY_LINK_PATH = Path("observability_link.txt")
 BOTTLENECK_PATH = Path("bottleneck_analysis.txt")
 
 
-class NullLogger:
-    def info(self, *args, **kwargs) -> None:
-        return None
-
-
 @dataclass
 class NodeTrace:
     node: str
     duration_ms: float
-    status: str
     preview: str
 
 
@@ -50,286 +36,14 @@ class QueryTrace:
     final_answer: str = ""
 
 
-class TraceRecorder:
-    def __init__(self, query_id: str, user_query: str) -> None:
-        self.trace = QueryTrace(query_id=query_id, user_query=user_query)
-
-    def add(self, node: str, duration_ms: float, status: str, preview: str) -> None:
-        self.trace.node_traces.append(
-            NodeTrace(
-                node=node,
-                duration_ms=round(duration_ms, 2),
-                status=status,
-                preview=preview[:220],
-            )
-        )
-
-
-def preview_from_result(result: Any) -> str:
-    if isinstance(result, dict) and result.get("messages"):
-        message = result["messages"][-1]
-        if hasattr(message, "content"):
-            return str(message.content).replace("\n", " ")
-    return str(result).replace("\n", " ")
-
-
-def timed_node(name: str, node_fn, recorder: TraceRecorder):
-    def wrapped(state: MultiAgentState):
-        started = time.perf_counter()
-        status = "ok"
-        result = None
-        try:
-            result = node_fn(state)
-            return result
-        except Exception as exc:
-            status = f"error:{exc.__class__.__name__}"
-            raise
-        finally:
-            duration_ms = (time.perf_counter() - started) * 1000
-            recorder.add(name, duration_ms, status, preview_from_result(result))
-
-    return wrapped
-
-
-class ObservabilitySupervisorModel:
-    def invoke(self, messages):
-        return AIMessage(content="FULL_PIPELINE")
-
-
-class ObservabilityResearcherModel:
-    def invoke(self, messages):
-        user_query = next((msg.content for msg in reversed(messages) if isinstance(msg, HumanMessage)), "").lower()
-        last_tool_message = next((msg for msg in reversed(messages) if isinstance(msg, ToolMessage)), None)
-
-        if last_tool_message is None:
-            if "recruiter" in user_query or "updated resume" in user_query:
-                return AIMessage(
-                    content="",
-                    tool_calls=[
-                        {
-                            "name": "search_knowledge_base",
-                            "args": {"query": "updated resume interview", "department": "careers", "top_k": 1},
-                            "id": "obs_research_1",
-                            "type": "tool_call",
-                        }
-                    ],
-                )
-            if "sponsor" in user_query or "dashboard" in user_query:
-                return AIMessage(
-                    content="",
-                    tool_calls=[
-                        {
-                            "name": "search_knowledge_base",
-                            "args": {
-                                "query": "sponsor dashboard fewer technical terms",
-                                "doc_type": "meeting_notes",
-                                "top_k": 1,
-                            },
-                            "id": "obs_research_2",
-                            "type": "tool_call",
-                        }
-                    ],
-                )
-            if "evaluation rubric" in user_query:
-                return AIMessage(
-                    content="",
-                    tool_calls=[
-                        {
-                            "name": "search_emails",
-                            "args": {"query": "evaluation rubric", "max_results": 1},
-                            "id": "obs_research_3",
-                            "type": "tool_call",
-                        }
-                    ],
-                )
-            if "viva slot" in user_query:
-                return AIMessage(
-                    content="",
-                    tool_calls=[
-                        {
-                            "name": "search_knowledge_base",
-                            "args": {"query": "viva slot due date", "doc_type": "deadline_record", "top_k": 1},
-                            "id": "obs_research_4",
-                            "type": "tool_call",
-                        }
-                    ],
-                )
-            return AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "check_important_alerts",
-                        "args": {"max_results": 5},
-                        "id": "obs_research_5",
-                        "type": "tool_call",
-                    }
-                ],
-            )
-
-        tool_summary = str(last_tool_message.content).splitlines()[0]
-        return AIMessage(
-            content=(
-                f"{HANDOFF_SIGNAL}\n"
-                f"- Grounded evidence gathered for the request.\n"
-                f"- Key evidence marker: {tool_summary}\n"
-                "- Draft the final user-facing response or email based on this evidence."
-            )
-        )
-
-
-class ObservabilityAnalystModel:
-    def invoke(self, messages):
-        user_query = next((msg.content for msg in reversed(messages) if isinstance(msg, HumanMessage)), "").lower()
-        last_tool_message = next((msg for msg in reversed(messages) if isinstance(msg, ToolMessage)), None)
-
-        if last_tool_message is None or "Draft Email" not in str(last_tool_message.content):
-            if "recruiter" in user_query or "updated resume" in user_query:
-                args = {
-                    "to": "Talent Team <careers@neuralbridge.ai>",
-                    "subject": "Updated resume for interview",
-                    "context": (
-                        "Thank them for the update, confirm that I will send my updated resume tonight, "
-                        "and mention that I am available for the interview."
-                    ),
-                    "tone": "professional",
-                }
-            elif "sponsor" in user_query or "dashboard" in user_query:
-                args = {
-                    "to": "Momina Shahid <momina.shahid@projectteam.com>",
-                    "subject": "Dashboard wording update",
-                    "context": (
-                        "Let Momina know that I will simplify the dashboard wording and highlight saved time, "
-                        "fewer missed follow-ups, and better prioritization."
-                    ),
-                    "tone": "friendly",
-                }
-            elif "evaluation rubric" in user_query:
-                args = {
-                    "to": "Areeba Khan <areeba.khan@projectteam.com>",
-                    "subject": "PRD update tonight",
-                    "context": "Tell Areeba that I will update the PRD according to the rubric tonight.",
-                    "tone": "friendly",
-                }
-            elif "viva slot" in user_query:
-                args = {
-                    "to": "Dr. Sana Qureshi <sana.qureshi@university.edu>",
-                    "subject": "AI407 viva slot selection",
-                    "context": "Confirm that I will choose my viva slot before the deadline.",
-                    "tone": "professional",
-                }
-            else:
-                args = {
-                    "to": "Areeba Khan <areeba.khan@projectteam.com>",
-                    "subject": "Urgent deadline status update",
-                    "context": "Share a short update about the most urgent open deadline and the immediate next action.",
-                    "tone": "friendly",
-                }
-
-            return AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "draft_email",
-                        "args": args,
-                        "id": "obs_analyst_draft",
-                        "type": "tool_call",
-                    }
-                ],
-            )
-
-        return AIMessage(content=f"Prepared the final response using grounded evidence.\n\n{last_tool_message.content}")
-
-
-def build_instrumented_graph(recorder: TraceRecorder):
-    workflow = StateGraph(MultiAgentState)
-    null_logger = NullLogger()
-    workflow.add_node(
-        "supervisor",
-        timed_node(
-            "supervisor",
-            supervisor_node_factory(model=ObservabilitySupervisorModel(), logger=null_logger),
-            recorder,
-        ),
-    )
-    workflow.add_node(
-        "researcher",
-        timed_node(
-            "researcher",
-            researcher_node_factory(model=ObservabilityResearcherModel(), logger=null_logger),
-            recorder,
-        ),
-    )
-    workflow.add_node(
-        "researcher_tools",
-        timed_node(
-            "researcher_tools",
-            researcher_tool_node_factory(logger=null_logger),
-            recorder,
-        ),
-    )
-    workflow.add_node(
-        "analyst",
-        timed_node(
-            "analyst",
-            analyst_node_factory(model=ObservabilityAnalystModel(), logger=null_logger),
-            recorder,
-        ),
-    )
-    workflow.add_node(
-        "analyst_tools",
-        timed_node(
-            "analyst_tools",
-            analyst_tool_node_factory(logger=null_logger),
-            recorder,
-        ),
-    )
-
-    workflow.set_entry_point("supervisor")
-    workflow.add_conditional_edges(
-        "supervisor",
-        supervisor_router,
-        {
-            "direct": "analyst",
-            "researcher": "researcher",
-            "analyst": "analyst",
-        },
-    )
-    workflow.add_conditional_edges(
-        "researcher",
-        researcher_router,
-        {
-            "researcher_tools": "researcher_tools",
-            "analyst": "analyst",
-            "__end__": END,
-        },
-    )
-    workflow.add_edge("researcher_tools", "researcher")
-    workflow.add_conditional_edges(
-        "analyst",
-        analyst_router,
-        {
-            "analyst_tools": "analyst_tools",
-            "__end__": END,
-        },
-    )
-    workflow.add_edge("analyst_tools", "analyst")
-    return workflow.compile()
-
-
-def run_trace(query_id: str, user_query: str) -> QueryTrace:
-    recorder = TraceRecorder(query_id=query_id, user_query=user_query)
-    graph = build_instrumented_graph(recorder)
-    result = graph.invoke(
-        {
-            "messages": [HumanMessage(content=user_query)],
-            "active_agent": "supervisor",
-            "route": "",
-            "research_output": "",
-            "final_answer": "",
-        }
-    )
-    recorder.trace.final_answer = str(result.get("final_answer") or result["messages"][-1].content)
-    return recorder.trace
+@dataclass
+class TracePlan:
+    query_id: str
+    route: str
+    research_tool: str
+    research_args: dict[str, Any]
+    analyst_tool: str
+    analyst_args: dict[str, Any]
 
 
 def complex_queries() -> list[tuple[str, str]]:
@@ -357,6 +71,207 @@ def complex_queries() -> list[tuple[str, str]]:
     ]
 
 
+def build_trace_plans() -> dict[str, TracePlan]:
+    query_pairs = dict(complex_queries())
+    return {
+        query_pairs["trace_01"]: TracePlan(
+            query_id="trace_01",
+            route="full_pipeline",
+            research_tool="search_knowledge_base",
+            research_args={"query": "updated resume interview", "department": "careers", "top_k": 1},
+            analyst_tool="draft_email",
+            analyst_args={
+                "to": "Talent Team <careers@neuralbridge.ai>",
+                "subject": "Updated resume for interview",
+                "context": (
+                    "Thank them for the update, confirm that I will send my updated resume tonight, "
+                    "and mention that I am available for the interview."
+                ),
+                "tone": "professional",
+            },
+        ),
+        query_pairs["trace_02"]: TracePlan(
+            query_id="trace_02",
+            route="full_pipeline",
+            research_tool="search_knowledge_base",
+            research_args={"query": "sponsor dashboard fewer technical terms", "doc_type": "meeting_notes", "top_k": 1},
+            analyst_tool="draft_email",
+            analyst_args={
+                "to": "Momina Shahid <momina.shahid@projectteam.com>",
+                "subject": "Dashboard wording update",
+                "context": (
+                    "Tell Momina that I will simplify the dashboard wording and focus on saved time, "
+                    "fewer missed follow-ups, and better prioritization."
+                ),
+                "tone": "friendly",
+            },
+        ),
+        query_pairs["trace_03"]: TracePlan(
+            query_id="trace_03",
+            route="full_pipeline",
+            research_tool="search_emails",
+            research_args={"query": "evaluation rubric", "max_results": 1},
+            analyst_tool="draft_email",
+            analyst_args={
+                "to": "Areeba Khan <areeba.khan@projectteam.com>",
+                "subject": "PRD update tonight",
+                "context": "Tell Areeba that I will update the PRD according to the evaluation rubric tonight.",
+                "tone": "friendly",
+            },
+        ),
+        query_pairs["trace_04"]: TracePlan(
+            query_id="trace_04",
+            route="full_pipeline",
+            research_tool="search_knowledge_base",
+            research_args={"query": "viva slot due date", "doc_type": "deadline_record", "top_k": 1},
+            analyst_tool="draft_email",
+            analyst_args={
+                "to": "Dr. Sana Qureshi <sana.qureshi@university.edu>",
+                "subject": "AI407 viva slot selection",
+                "context": "Confirm that I will choose my AI407 viva slot before the deadline.",
+                "tone": "professional",
+            },
+        ),
+        query_pairs["trace_05"]: TracePlan(
+            query_id="trace_05",
+            route="full_pipeline",
+            research_tool="check_important_alerts",
+            research_args={"max_results": 5},
+            analyst_tool="draft_email",
+            analyst_args={
+                "to": "Areeba Khan <areeba.khan@projectteam.com>",
+                "subject": "Next urgent action",
+                "context": "Share a short update about the most urgent open deadline and the immediate next action.",
+                "tone": "friendly",
+            },
+        ),
+    }
+
+
+def _latest_user_query(messages: list[BaseMessage]) -> str:
+    return next((str(message.content) for message in reversed(messages) if isinstance(message, HumanMessage)), "")
+
+
+def _last_tool_message(messages: list[BaseMessage]) -> ToolMessage | None:
+    return next((message for message in reversed(messages) if isinstance(message, ToolMessage)), None)
+
+
+def preview_from_payload(payload: Any) -> str:
+    if isinstance(payload, dict):
+        messages = payload.get("messages")
+        if messages:
+            last_message = messages[-1]
+            if hasattr(last_message, "content"):
+                return str(last_message.content).replace("\n", " ")[:220]
+        if "final_answer" in payload:
+            return str(payload["final_answer"]).replace("\n", " ")[:220]
+    return str(payload).replace("\n", " ")[:220]
+
+
+class TraceSupervisorModel:
+    def __init__(self, plan_by_query: dict[str, TracePlan]) -> None:
+        self.plan_by_query = plan_by_query
+
+    def invoke(self, messages: list[BaseMessage]) -> AIMessage:
+        query = _latest_user_query(messages)
+        plan = self.plan_by_query[query]
+        return AIMessage(content="FULL_PIPELINE" if plan.route == "full_pipeline" else "RESEARCHER_ONLY")
+
+
+class TraceResearcherModel:
+    def __init__(self, plan_by_query: dict[str, TracePlan]) -> None:
+        self.plan_by_query = plan_by_query
+
+    def invoke(self, messages: list[BaseMessage]) -> AIMessage:
+        query = _latest_user_query(messages)
+        plan = self.plan_by_query[query]
+        last_tool = _last_tool_message(messages)
+
+        if last_tool is None:
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": plan.research_tool,
+                        "args": plan.research_args,
+                        "id": f"{plan.query_id}_researcher_tool",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+
+        return AIMessage(
+            content=(
+                f"{HANDOFF_SIGNAL}\n"
+                f"- Grounded evidence for: {query}\n"
+                f"- Evidence payload:\n{sanitize_output_text(str(last_tool.content))}"
+            )
+        )
+
+
+class TraceAnalystModel:
+    def __init__(self, plan_by_query: dict[str, TracePlan]) -> None:
+        self.plan_by_query = plan_by_query
+
+    def invoke(self, messages: list[BaseMessage]) -> AIMessage:
+        query = _latest_user_query(messages)
+        plan = self.plan_by_query[query]
+        last_tool = _last_tool_message(messages)
+
+        if last_tool is None:
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": plan.analyst_tool,
+                        "args": plan.analyst_args,
+                        "id": f"{plan.query_id}_analyst_tool",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+
+        return AIMessage(content=sanitize_output_text(str(last_tool.content)))
+
+
+def build_instrumented_graph() -> tuple[Any, dict[str, TracePlan], str]:
+    ensure_grounding_ready()
+    plans = build_trace_plans()
+    use_live_runtime = os.getenv("BURAQ_OBSERVABILITY_USE_LIVE_MODEL", "false").lower() == "true" and bool(os.getenv("GROQ_API_KEY"))
+
+    if use_live_runtime:
+        return build_secured_graph(), plans, "live_llm"
+
+    model_bundle = {
+        "supervisor": TraceSupervisorModel(plans),
+        "researcher": TraceResearcherModel(plans),
+        "analyst": TraceAnalystModel(plans),
+    }
+    return build_secured_graph(model=model_bundle), plans, "scripted_trace"
+
+
+def run_trace(query_id: str, user_query: str, graph: Any) -> QueryTrace:
+    trace = QueryTrace(query_id=query_id, user_query=user_query)
+    last_event_time = time.perf_counter()
+
+    for event in graph.stream(build_graph_input(user_query), stream_mode="updates"):
+        current_time = time.perf_counter()
+        elapsed_ms = (current_time - last_event_time) * 1000
+        for node, payload in event.items():
+            trace.node_traces.append(
+                NodeTrace(
+                    node=node,
+                    duration_ms=round(elapsed_ms, 2),
+                    preview=preview_from_payload(payload),
+                )
+            )
+        last_event_time = time.perf_counter()
+
+    if trace.node_traces:
+        trace.final_answer = trace.node_traces[-1].preview
+    return trace
+
+
 def aggregate_node_timings(traces: list[QueryTrace]) -> dict[str, dict[str, float]]:
     grouped: dict[str, list[float]] = {}
     for trace in traces:
@@ -365,10 +280,13 @@ def aggregate_node_timings(traces: list[QueryTrace]) -> dict[str, dict[str, floa
 
     summary: dict[str, dict[str, float]] = {}
     for node, values in grouped.items():
+        ordered = sorted(values)
+        p95_index = max(math.ceil(len(ordered) * 0.95) - 1, 0)
         summary[node] = {
-            "average_ms": round(sum(values) / len(values), 2),
-            "max_ms": round(max(values), 2),
-            "count": float(len(values)),
+            "average_ms": round(sum(ordered) / len(ordered), 2),
+            "max_ms": round(max(ordered), 2),
+            "p95_ms": round(ordered[p95_index], 2),
+            "count": float(len(ordered)),
         }
     return summary
 
@@ -422,10 +340,11 @@ def write_simple_pdf(lines: list[str], output_path: Path) -> None:
     output_path.write_bytes(b"".join(output))
 
 
-def write_outputs(traces: list[QueryTrace], summary: dict[str, dict[str, float]]) -> None:
+def write_outputs(traces: list[QueryTrace], summary: dict[str, dict[str, float]], execution_mode: str) -> None:
     TRACE_JSON_PATH.write_text(
         json.dumps(
             {
+                "execution_mode": execution_mode,
                 "traces": [asdict(trace) for trace in traces],
                 "summary": summary,
             },
@@ -438,56 +357,47 @@ def write_outputs(traces: list[QueryTrace], summary: dict[str, dict[str, float]]
     pdf_lines = [
         "Buraq Lab 7 Trace Export",
         "",
+        f"Execution mode: {execution_mode}",
         f"Query ID: {first_trace.query_id}",
         f"User Query: {first_trace.user_query}",
         "",
         "Node Timeline (ms):",
     ]
     for node_trace in first_trace.node_traces:
-        pdf_lines.append(
-            f"- {node_trace.node}: {node_trace.duration_ms:.2f} ms | {node_trace.status} | {node_trace.preview}"
-        )
-    pdf_lines.extend(
-        [
-            "",
-            "Final Answer Preview:",
-            first_trace.final_answer[:180],
-        ]
-    )
+        pdf_lines.append(f"- {node_trace.node}: {node_trace.duration_ms:.2f} ms | {node_trace.preview}")
+    pdf_lines.extend(["", "Final Answer Preview:", first_trace.final_answer[:180]])
     write_simple_pdf(pdf_lines, TRACE_PDF_PATH)
 
     if os.getenv("LANGSMITH_API_KEY"):
         OBSERVABILITY_LINK_PATH.write_text(
-            "LangSmith tracing is configured in this environment. Check the project dashboard for the public share URL.",
+            "LangSmith tracing is configured in this environment. If LANGCHAIN_TRACING_V2 is enabled, these graph runs will appear in the LangSmith project dashboard.",
             encoding="utf-8",
         )
     else:
         OBSERVABILITY_LINK_PATH.write_text(
-            "LangSmith public tracing was not available in this local environment because LANGSMITH_API_KEY was not configured.\n"
-            f"Fallback PDF export included: {TRACE_PDF_PATH.name}",
+            "LangSmith tracing is not configured locally. Use observability_traces.json and observability_trace_export.pdf for the recorded node timeline.",
             encoding="utf-8",
         )
 
     slowest_node = max(summary.items(), key=lambda item: item[1]["average_ms"])
     BOTTLENECK_PATH.write_text(
         (
-            f"Across 5 complex multi-agent traces, the slowest node was {slowest_node[0]} "
-            f"with an average latency of {slowest_node[1]['average_ms']:.2f} ms and a peak of "
-            f"{slowest_node[1]['max_ms']:.2f} ms. The traces show that retrieval-heavy steps dominate latency, "
-            "especially when the researcher calls semantic search over the grounded vector store before handing off "
-            "to the analyst. No node crashed during the five runs, but the most divergence-prone point is the "
-            "Researcher-to-Analyst handoff because compressed summaries can hide which specific deadline or email the "
-            "draft should reference. The best fix is to keep the embedding model warm in memory, cache frequent retrievals, "
-            "and pass a structured evidence payload instead of only a free-text handoff summary."
+            f"Observed {len(traces)} real secured-graph traces in {execution_mode} mode. "
+            f"The slowest average node was {slowest_node[0]} at {slowest_node[1]['average_ms']:.2f} ms "
+            f"(p95 {slowest_node[1]['p95_ms']:.2f} ms, max {slowest_node[1]['max_ms']:.2f} ms). "
+            "Tool-bearing nodes dominate latency because they pay the retrieval or draft-generation cost before handing "
+            "control back to the graph. The main optimization targets are keeping the embedding model warm, caching stable "
+            "grounded lookups used in evaluation, and reducing oversized handoff payloads between researcher and analyst."
         ),
         encoding="utf-8",
     )
 
 
 def main() -> None:
-    traces = [run_trace(query_id, user_query) for query_id, user_query in complex_queries()]
+    graph, _, execution_mode = build_instrumented_graph()
+    traces = [run_trace(query_id, user_query, graph) for query_id, user_query in complex_queries()]
     summary = aggregate_node_timings(traces)
-    write_outputs(traces, summary)
+    write_outputs(traces, summary, execution_mode)
     print(f"Wrote {TRACE_JSON_PATH}, {TRACE_PDF_PATH}, {OBSERVABILITY_LINK_PATH}, and {BOTTLENECK_PATH}.")
 
 

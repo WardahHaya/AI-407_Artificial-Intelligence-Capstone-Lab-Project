@@ -71,6 +71,9 @@ def _safe_get_gmail_service():
     Returns a Gmail service only when credentials are already configured.
     This avoids forcing a browser auth flow during lab verification.
     """
+    if os.getenv("BURAQ_DISABLE_LIVE_GMAIL", "false").lower() == "true":
+        return None
+
     token_path = Path("token.pickle")
     creds_path = Path(os.getenv("GOOGLE_CLIENT_SECRET_FILE", "credentials.json"))
     if not token_path.exists() or not creds_path.exists():
@@ -95,6 +98,10 @@ def _safe_get_gmail_service():
         return build("gmail", "v1", credentials=creds)
     except Exception:
         return None
+
+
+def _direct_outbound_allowed() -> bool:
+    return os.getenv("BURAQ_ALLOW_DIRECT_OUTBOUND", "false").lower() == "true"
 
 
 def _normalize_gmail_timestamp(header_date: str, internal_date: str | None) -> str:
@@ -333,6 +340,17 @@ def _load_draft() -> dict[str, str] | None:
         return None
     with DRAFT_CACHE_PATH.open("rb") as handle:
         return pickle.load(handle)
+
+
+def export_saved_draft() -> dict[str, str] | None:
+    draft = _load_draft()
+    if not draft:
+        return None
+    return dict(draft)
+
+
+def clear_saved_draft() -> None:
+    DRAFT_CACHE_PATH.unlink(missing_ok=True)
 
 
 def _parse_schedule_timestamp(value: str) -> datetime:
@@ -612,6 +630,8 @@ def send_reviewed_email(confirmed: bool) -> str:
     """
     if not confirmed:
         return "The draft was not sent because explicit approval was not confirmed."
+    if not _direct_outbound_allowed():
+        return "Direct outbound execution is disabled. Stage the draft through the approval workflow instead."
 
     draft = _load_draft()
     if not draft:
@@ -626,7 +646,7 @@ def send_reviewed_email(confirmed: bool) -> str:
     if not success:
         return detail
 
-    DRAFT_CACHE_PATH.unlink(missing_ok=True)
+    clear_saved_draft()
     return detail
 
 
@@ -635,7 +655,7 @@ class SendWithAttachmentInput(ToolInput):
     subject: str = Field(description="Subject line for the email.")
     body: str = Field(description="Body text of the email.")
     file_url: str = Field(
-        description="Storage reference such as storage://uploads/file.pdf or a local file path to attach.",
+        description="Managed storage reference such as storage://uploads/file.pdf to attach.",
     )
 
 
@@ -643,8 +663,11 @@ class SendWithAttachmentInput(ToolInput):
 def send_email_with_attachment(to: str, subject: str, body: str, file_url: str) -> str:
     """
     Send an email with one stored attachment.
-    Use this when the user explicitly wants to send a file along with the message.
+    Use this when the user explicitly wants to send a managed-storage file along with the message.
     """
+    if not _direct_outbound_allowed():
+        return "Direct outbound execution is disabled. Stage the attachment send through the approval workflow instead."
+
     success, detail = deliver_email_message(to=to, subject=subject, body=body, attachment_ref=file_url)
     if success:
         return detail
@@ -674,6 +697,9 @@ def schedule_email(to: str, subject: str, body: str, send_at: str) -> str:
     Queue an email for future delivery by the scheduler daemon.
     Use this when the user asks to send an email later at a specific time.
     """
+    if not _direct_outbound_allowed():
+        return "Direct outbound execution is disabled. Stage the scheduled email through the approval workflow instead."
+
     scheduled_for = _parse_schedule_timestamp(send_at)
     row_id = queue_scheduled_email(
         to_address=to,
